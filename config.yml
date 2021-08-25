@@ -1,0 +1,17 @@
+listen:
+  port: 514
+  address: 0.0.0.0
+  # 暂时只支持udp，改了也没用
+  type: udp
+
+autoScale:
+  # QPS达到该值开始自动伸缩
+  max: 10
+  # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
+  safe: 6
+  # 静默时间，当超过max且过了sliceTime后才开始考虑autoScale
+  sliceSecond: 120
+  # 需要HPA的服务
+  services:
+    - namespace.serviceName
+    - demo-dev.daohao
