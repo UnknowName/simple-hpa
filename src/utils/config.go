@@ -9,8 +9,10 @@ import (
 )
 
 type autoScaleConfig struct {
-	Max         float64  `yaml:"max"`
-	Safe        float64  `yaml:"safe"`
+	MaxPod      int      `yaml:"maxPod"`
+	MinPod      int      `yaml:"minPod"`
+	MaxQPS      float64  `yaml:"maxQPS"`
+	SafeQPS     float64  `yaml:"safeQPS"`
 	SliceSecond int      `yaml:"sliceSecond"`
 	Services    []string `yaml:"services"`
 }
@@ -30,6 +32,19 @@ func (c *Config) String() string {
 	return fmt.Sprintf("Config{Listen=%s:%d}", c.Listen.ListenAddr, c.Listen.Port)
 }
 
+func (c *Config) valid() {
+	if c.AutoScale.MaxQPS < c.AutoScale.SafeQPS {
+		panic("config error, autoScale maxQPS < autoScale.safeQPS")
+	}
+	if c.AutoScale.MaxPod < c.AutoScale.MinPod {
+		panic("config error, autoScale maxPod < autoScale.minPod")
+	}
+	if c.AutoScale.MinPod < 1 {
+		log.Println("warning, minPod < 1, use 1")
+		c.AutoScale.MinPod = 1
+	}
+}
+
 func NewConfig(filename string) *Config {
 	config := new(Config)
 	file, err := os.Open(filename)
@@ -44,5 +59,6 @@ func NewConfig(filename string) *Config {
 	if err := yaml.Unmarshal(bytes, config); err != nil {
 		log.Fatalln("Convert config file error ", err)
 	}
+	config.valid()
 	return config
 }

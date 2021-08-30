@@ -5,10 +5,13 @@ listen:
   type: udp
 
 autoScale:
+  # 限制最高Pod数
+  maxPod: 20
+  minPod: 1
   # QPS达到该值开始自动伸缩
-  max: 10
+  maxQPS: 10
   # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
-  safe: 6
+  safeQPS: 6
   # 静默时间，当超过max且过了sliceTime后才开始考虑autoScale
   sliceSecond: 120
   # 需要HPA的服务

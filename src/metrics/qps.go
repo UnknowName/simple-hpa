@@ -19,7 +19,7 @@ func NewCalculate(upstreamAddr string, accessTime time.Time) *Calculate {
 }
 
 type Calculate struct {
-	secondTick <-chan time.Time
+	secondTick     <-chan time.Time
 	resetTick      <-chan time.Time
 	currentCount   int
 	durationCounts []map[int]time.Time
@@ -33,9 +33,9 @@ func (c *Calculate) String() string {
 }
 
 func (c *Calculate) Update(upstream string, accessTime time.Time) {
-	c.upstreams[upstream] = accessTime
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+	c.upstreams[upstream] = accessTime
 	select {
 	case <-c.secondTick:
 		data := map[int]time.Time{c.currentCount: time.Now().Add(scaleExpire)}
@@ -65,7 +65,15 @@ func (c *Calculate) AvgQps() float64 {
 	return c.avg / float64(len(c.upstreams))
 }
 
-// TODO QPS的历史值也得取掉
+func (c *Calculate) GetPodCount() int {
+	c.clean()
+	length := len(c.upstreams)
+	if length < 1 {
+		return 1
+	}
+	return length
+}
+
 func (c *Calculate) clean() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -75,7 +83,7 @@ func (c *Calculate) clean() {
 		}
 	}
 	for index, dict := range c.durationCounts {
-		for cnt,addTime := range dict {
+		for cnt, addTime := range dict {
 			if cnt > 0 && addTime.Before(time.Now()) {
 				c.durationCounts[index] = map[int]time.Time{0: time.Now()}
 			}

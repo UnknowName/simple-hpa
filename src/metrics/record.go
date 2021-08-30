@@ -57,13 +57,20 @@ func (r *ScaleRecord) isState(state svcState) bool {
 }
 
 func (r *ScaleRecord) IsSafe() bool {
+    // avgQPS < config.max
     var state svcState
     state = safe
     return r.isState(state)
 }
 
-func (r *ScaleRecord) GetSafeCount(qps float64) int {
-    newCount := int(math.Ceil(qps / r.safeQps))
+func (r *ScaleRecord) GetSafeCount() int {
+    sum := float64(0)
+    length := float64(0)
+    for _, v := range r.latestQps {
+        sum += v
+        length++
+    }
+    newCount := int(math.Ceil(sum / length / r.safeQps))
     if newCount < 1 {
         return 1
     }
@@ -94,9 +101,16 @@ func (r *ScaleRecord) ChangeCount(count int) {
 }
 
 func (r *ScaleRecord) GetCount() int {
+    if r.latestCount < 1 {
+        return 1
+    }
     return r.latestCount
 }
 
 func (r *ScaleRecord) RecordQps(qps float64) {
     r.latestQps = append(r.latestQps[1:], qps)
+}
+
+func (r *ScaleRecord) RecordPodCount(v int) {
+    r.latestCount = v
 }
