@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 )
 
 type autoScaleConfig struct {
@@ -42,6 +43,15 @@ func (c *Config) valid() {
 	if c.AutoScale.MinPod < 1 {
 		log.Println("warning, minPod < 1, use 1")
 		c.AutoScale.MinPod = 1
+	}
+}
+
+// env优先级大于config.yml，这样在容器环境中，只需要修改env而不要重新打包镜像
+
+func (c *Config) getEnvConfig() {
+	service := os.Getenv("SCALE_SERVICES")
+	if service != "" {
+		c.AutoScale.Services = strings.Split(service, ",")
 	}
 }
 
