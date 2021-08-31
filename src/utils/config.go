@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -53,6 +54,26 @@ func (c *Config) getEnvConfig() {
 	if service != "" {
 		c.AutoScale.Services = strings.Split(service, ",")
 	}
+	safeQps, err := strconv.Atoi(os.Getenv("SAFE_QPS"))
+	if err == nil {
+		c.AutoScale.SafeQPS = float64(safeQps)
+	}
+	maxQps, err := strconv.Atoi(os.Getenv("MAX_QPS"))
+	if err == nil {
+		c.AutoScale.MaxQPS = float64(maxQps)
+	}
+	minPod, err := strconv.Atoi(os.Getenv("MIN_POD"))
+	if err == nil {
+		c.AutoScale.MinPod = minPod
+	}
+	maxPod, err := strconv.Atoi(os.Getenv("MAX_POD"))
+	if err == nil {
+		c.AutoScale.MaxPod = maxPod
+	}
+	sliceTime, err := strconv.Atoi(os.Getenv("SLICE_TIME"))
+	if err == nil {
+		c.AutoScale.SliceSecond = sliceTime
+	}
 }
 
 func NewConfig(filename string) *Config {
@@ -69,6 +90,7 @@ func NewConfig(filename string) *Config {
 	if err := yaml.Unmarshal(bytes, config); err != nil {
 		log.Fatalln("Convert config file error ", err)
 	}
+	config.getEnvConfig()
 	config.valid()
 	return config
 }
