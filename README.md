@@ -31,7 +31,7 @@ Example `ConfigMap`
 
 ```yaml
 disable-access-log: "false"
-access-log-path: "syslog:server=simple-hpa.default.cluster.local.:514"
+access-log-path: "syslog:server=simple-hpa.default:514"
 log-format-upstream:  '{"time_str": "$time_iso8601",
                       "time_msec": $msec,
                       "remote_addr": "$proxy_protocol_addr",
