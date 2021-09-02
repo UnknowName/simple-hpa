@@ -5,8 +5,9 @@ import (
 	"testing"
 )
 
-func TestChangeServicePod(t *testing.T) {
-	cnt := int32(1)
-	err := ChangeServicePod("demo-dev.daohao", &cnt)
+func TestK8SClient_ChangeServicePod(t *testing.T) {
+	client := NewK8SClient()
+	newCount := int32(1)
+	err := client.ChangeServicePod("demo-dev", "daohao", &newCount)
 	log.Println(err)
 }

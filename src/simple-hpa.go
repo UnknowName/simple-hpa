@@ -110,7 +110,7 @@ func main() {
 							if err != nil {
 								log.Println(svc, "scale failed, ", err)
 							} else {
-								log.Printf("%s scale from %d to %d", svc, scRecord.GetCount(), *newCount)
+								log.Printf("%s scale from %d to %d", svc, *currCnt, *newCount)
 								scRecord.ChangeCount(*newCount)
 								scRecord.ChangeScaleState(true)
 							}
