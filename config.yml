@@ -16,5 +16,6 @@ autoScale:
   sliceSecond: 120
   # 需要HPA的服务
   services:
-    - namespace.serviceName
+    - namespace.deployName
+    - default.sample-app
     - demo-dev.daohao

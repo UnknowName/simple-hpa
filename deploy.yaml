@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: simple-hpa
+  name: simple-hpa
+spec:
+  # Don't change
+  replicas: 1
+  selector:
+    matchLabels:
+      app: simple-hpa
+  template:
+    metadata:
+      labels:
+        app: simple-hpa
+    spec:
+      containers:
+        - image: unknowname/simple-hpa
+          imagePullPolicy: Always
+          name: simple-hpa
+          env:
+          - name: TZ
+            value: "Asia/Shanghai"
+          - name: MIN_POD
+            value: "1"
+          - name: MAX_POD
+            value: "2"
+          - name: MAX_QPS
+            value: "10"
+          - name: SAFE_QPS
+            value: "5"
+          - name: SCALE_SERVICES
+            value: "demo-dev.daohao,default.test"
+          ports:
+            - containerPort: 514
+              name: rsyslog
+              protocol: UDP
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      securityContext: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: simple-hpa
+  name: simple-hpa
+spec:
+  ports:
+    - port: 514
+      protocol: UDP
+      targetPort: 514
+  selector:
+    app: simple-hpa
+  sessionAffinity: None
+  type: ClusterIP
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: cluster-admin
+rules:
+  - apiGroups:
+      - '*'
+    resources:
+      - '*'
+    verbs:
+      - '*'
+  - nonResourceURLs:
+      - '*'
+    verbs:
+      - '*'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    kubernetes.io/bootstrapping: rbac-defaults
+  name: default-admin
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default

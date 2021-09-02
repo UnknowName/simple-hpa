@@ -56,7 +56,7 @@ func FilterService(itemChan <-chan ingress.Access, services []string) <-chan ing
 
 type serviceInfo struct {
 	Name     string
-	PodCount int
+	PodCount int32
 	AvgQps   float64
 }
 
@@ -65,7 +65,7 @@ func (si *serviceInfo) String() string {
 }
 
 func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
-    qpsRecord map[string]*metrics.Calculate) <-chan *serviceInfo {
+	qpsRecord map[string]*metrics.Calculate) <-chan *serviceInfo {
 	channel := make(chan *serviceInfo)
 	go func() {
 		defer close(channel)
@@ -95,10 +95,7 @@ func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64, scaleRecord
 			return
 		}
 		if v, exist := scaleRecord[data.Name]; exist {
-			v.RecordQps(data.AvgQps)
-			if v.GetCount() != data.PodCount {
-			    v.RecordPodCount(data.PodCount)
-            }
+			v.RecordQps(data.AvgQps, metrics.QPSRecordExpire)
 		} else {
 			scaleRecord[data.Name] = metrics.NewScaleRecord(maxQps, safeQps)
 		}

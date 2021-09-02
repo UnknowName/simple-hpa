@@ -65,11 +65,11 @@ func (c *Calculate) AvgQps() float64 {
 	return c.avg / float64(len(c.upstreams))
 }
 
-func (c *Calculate) GetPodCount() int {
+func (c *Calculate) GetPodCount() int32 {
 	c.clean()
-	length := len(c.upstreams)
+	length := int32(len(c.upstreams))
 	if length < 1 {
-		return 1
+		length = 1
 	}
 	return length
 }

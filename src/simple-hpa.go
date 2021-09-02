@@ -5,6 +5,8 @@ import (
 	"log"
 	"net"
 	"os"
+	"simple-hpa/src/scale"
+	"strings"
 	"time"
 
 	"simple-hpa/src/metrics"
@@ -22,6 +24,7 @@ var (
 	config      *utils.Config
 	calcuRecord map[string]*metrics.Calculate
 	scaleRecord map[string]*metrics.ScaleRecord
+	k8sClient   *scale.K8SClient
 )
 
 func init() {
@@ -39,6 +42,7 @@ func init() {
 	}
 	calcuRecord = make(map[string]*metrics.Calculate)
 	scaleRecord = make(map[string]*metrics.ScaleRecord)
+	k8sClient = scale.NewK8SClient()
 }
 
 func main() {
@@ -77,22 +81,42 @@ func main() {
 			select {
 			case <-time.Tick(checkTime):
 				for svc, scRecord := range scaleRecord {
-					log.Printf("%s is safe: %t, is wasteful: %t, currentCnt: %d", svc, scRecord.IsSafe(),
+					log.Printf("%s is safe: %t, is wasteful: %t, scaleRecordCnt: %d", svc, scRecord.IsSafe(),
 						scRecord.IsWasteful(), scRecord.GetCount())
 					if (!scRecord.IsSafe() || scRecord.IsWasteful()) && scRecord.Interval() {
 						// 说明过量或者过少，都要调整，但是这里记录下上次调整的时间节点，防止频繁的改动
 						newCount := scRecord.GetSafeCount()
-						if newCount > config.AutoScale.MaxPod {
-							newCount = config.AutoScale.MaxPod
-						} else if newCount < config.AutoScale.MinPod {
-							newCount = config.AutoScale.MinPod
+						if *newCount > config.AutoScale.MaxPod {
+							*newCount = config.AutoScale.MaxPod
+						} else if *newCount < config.AutoScale.MinPod {
+							*newCount = config.AutoScale.MinPod
 						}
-						if newCount != scRecord.GetCount() {
-							log.Printf("service %s %d -> %d", svc, scRecord.GetCount(), newCount)
-							scRecord.ChangeCount(newCount)
-							scRecord.ChangeScaleState(true)
-						}
+						go func() {
+							svcStrs := strings.Split(svc, ".")
+							if len(svcStrs) != 2 {
+								log.Println("WARN service name", svc, "error")
+								return
+							}
+							namespace, service := svcStrs[0], svcStrs[1]
+							currCnt, err := k8sClient.GetServicePod(namespace, service)
+							if err != nil {
+								log.Println("WARN get kubernetes client error ", err)
+								return
+							}
+							if *currCnt == *newCount {
+								return
+							}
+							err = k8sClient.ChangeServicePod(namespace, service, newCount)
+							if err != nil {
+								log.Println(svc, "scale failed, ", err)
+							} else {
+								log.Printf("%s scale from %d to %d", svc, scRecord.GetCount(), *newCount)
+								scRecord.ChangeCount(*newCount)
+								scRecord.ChangeScaleState(true)
+							}
+						}()
 					}
+					time.Sleep(sleepTime)
 				}
 			}
 			time.Sleep(sleepTime)

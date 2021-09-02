@@ -1,5 +1,7 @@
 # Simple HPA Base Ingress Access Log
 
+Support `NGINX Ingress`
+
 ## How to Use
 
 ## Requirement
@@ -7,24 +9,45 @@
 - `Kubernetes`
 - `NGINX Ingress`
 
-  `Ingress Nginx` Add `ConfigMap` of `log-format-upstream`
-    ```bash
-    kubectl edit cm/nginx-configuration -n ingress-nginx
-    ```
+## Quick Start
 
-    ```yaml
-    disable-access-log: "false"
-    access-log-path: "syslog:server=ServerIP:ServerPort"
-    log-format-upstream: '{"time_str": "$time_iso8601",
-                       "time_msec": $msec,
-                       "remote_addr": "$proxy_protocol_addr",
-                       "x-forward-for": "$http_x_forwarded_for",
-                       "request_time": $request_time,
-                       "upstream_response_time": "$upstream_response_time",
-                       "upstream_status": $upstream_status,
-                       "status": $status,
-                       "hostname": "$host",
-                       "namespace": "$namespace",
-                       "service": "$service_name"}'
-    ```
+### 1. Deploy
+
+Change `deploy.yaml`ENV, and then apply it
+
+  ```bash
+  # Kubernetes >= 1.18
+  # if Kubernetes < 1.18,change YAML file apiVersion
+  kubectl apply -f deploy.yaml -n default
+  ```
+
+### 2.  Add  Ingress `ConfigMap`
+
+```bash
+ kubectl edit cm/nginx-configuration -n ingress-nginx
+ ```
   
+Example `ConfigMap`
+
+```yaml
+disable-access-log: "false"
+access-log-path: "syslog:server=simple-hpa.default.cluster.local.:514"
+log-format-upstream:  '{"time_str": "$time_iso8601",
+                      "time_msec": $msec,
+                      "remote_addr": "$proxy_protocol_addr",
+                      "x-forward-for": "$http_x_forwarded_for",
+                      "request_time": $request_time,
+                      "upstream_response_time": "$upstream_response_time",
+                      "upstream_addr": $upstream_addr,
+                      "status": $status,
+                      "hostname": "$host",
+                      "namespace": "$namespace",
+                      "service": "$service_name"}'
+...
+ ```
+
+The follow field must present
+- `namespace`
+- `service`
+- `time_msec`
+- `upstream_addr`

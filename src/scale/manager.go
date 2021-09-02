@@ -1,7 +1,6 @@
 package scale
 
 import (
-	"errors"
 	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -10,7 +9,6 @@ import (
 	"k8s.io/client-go/util/homedir"
 	"log"
 	"path/filepath"
-	"strings"
 )
 
 func getClient() (*kubernetes.Clientset, error) {
@@ -49,24 +47,32 @@ func getClientInCluster() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-func ChangeServicePod(service string, count *int32) error {
-	names := strings.Split(service, ".")
-	if len(names) != 2 {
-		return errors.New("service name wrong,use full name like namespace.serviceName")
+func NewK8SClient() *K8SClient {
+	clientset,err := getClient()
+	if err != nil {
+		log.Fatalln("init client failed")
 	}
-	namespace, service := names[0], names[1]
-	client, err := getClient()
+	return &K8SClient{clientset: clientset}
+}
+
+type K8SClient struct {
+	clientset *kubernetes.Clientset
+}
+
+func (kc *K8SClient) GetServicePod(namespace, service string) (*int32, error) {
+	dep, err := kc.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), service, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return dep.Spec.Replicas, nil
+}
+
+func (kc *K8SClient) ChangeServicePod(namespace, service string, newCount *int32) error {
+	dep, err := kc.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), service, metav1.GetOptions{})
 	if err != nil {
 		return err
 	}
-	deployment, err := client.AppsV1().Deployments(namespace).Get(context.TODO(), service, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	deployment.Spec.Replicas = count
-	_, err = client.AppsV1().Deployments(namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
-	if err != nil {
-		log.Println("change service pod error ", err)
-	}
+	dep.Spec.Replicas = newCount
+	_, err = kc.clientset.AppsV1().Deployments(namespace).Update(context.TODO(), dep, metav1.UpdateOptions{})
 	return err
 }

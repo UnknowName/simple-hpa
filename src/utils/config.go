@@ -11,8 +11,8 @@ import (
 )
 
 type autoScaleConfig struct {
-	MaxPod      int      `yaml:"maxPod"`
-	MinPod      int      `yaml:"minPod"`
+	MaxPod      int32    `yaml:"maxPod"`
+	MinPod      int32    `yaml:"minPod"`
 	MaxQPS      float64  `yaml:"maxQPS"`
 	SafeQPS     float64  `yaml:"safeQPS"`
 	SliceSecond int      `yaml:"sliceSecond"`
@@ -64,11 +64,11 @@ func (c *Config) getEnvConfig() {
 	}
 	minPod, err := strconv.Atoi(os.Getenv("MIN_POD"))
 	if err == nil {
-		c.AutoScale.MinPod = minPod
+		c.AutoScale.MinPod = int32(minPod)
 	}
 	maxPod, err := strconv.Atoi(os.Getenv("MAX_POD"))
 	if err == nil {
-		c.AutoScale.MaxPod = maxPod
+		c.AutoScale.MaxPod = int32(maxPod)
 	}
 	sliceTime, err := strconv.Atoi(os.Getenv("SLICE_TIME"))
 	if err == nil {
