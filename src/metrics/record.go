@@ -19,7 +19,7 @@ func NewScaleRecord(maxQps, safeQps float64) *ScaleRecord {
 		maxQps:      maxQps,
 		safeQps:     safeQps,
 		isScaled:    make(map[bool]time.Time),
-		latestCount: 0,
+		latestCount: nil,
 	}
 }
 
@@ -28,7 +28,7 @@ type ScaleRecord struct {
 	maxQps      float64
 	safeQps     float64
 	isScaled    map[bool]time.Time
-	latestCount int32
+	latestCount *int32
 }
 
 func (r *ScaleRecord) String() string {
@@ -105,13 +105,13 @@ func (r *ScaleRecord) ChangeScaleState(state bool) {
 	r.isScaled[state] = time.Now().Add(scaleExpire)
 }
 
-func (r *ScaleRecord) ChangeCount(count int32) {
+func (r *ScaleRecord) ChangeCount(count *int32) {
 	r.latestCount = count
 }
 
-func (r *ScaleRecord) GetCount() int32 {
-	if r.latestCount < 1 {
-		return 1
+func (r *ScaleRecord) GetCount() *int32 {
+	if r.latestCount != nil && *r.latestCount < 1 {
+		*r.latestCount = 1
 	}
 	return r.latestCount
 }
@@ -119,8 +119,4 @@ func (r *ScaleRecord) GetCount() int32 {
 func (r *ScaleRecord) RecordQps(qps float64, expireTime time.Duration) {
 	qpsDict := map[time.Time]float64{time.Now().Add(expireTime): qps}
 	r.latestQps = append(r.latestQps[1:], qpsDict)
-}
-
-func (r *ScaleRecord) RecordPodCount(v int32) {
-	r.latestCount = v
 }

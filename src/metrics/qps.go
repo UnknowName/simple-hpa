@@ -68,9 +68,6 @@ func (c *Calculate) AvgQps() float64 {
 func (c *Calculate) GetPodCount() int32 {
 	c.clean()
 	length := int32(len(c.upstreams))
-	if length < 1 {
-		length = 1
-	}
 	return length
 }
 
