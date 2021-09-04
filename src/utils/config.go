@@ -2,12 +2,13 @@ package utils
 
 import (
 	"fmt"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v2"
 )
 
 type autoScaleConfig struct {
@@ -22,12 +23,12 @@ type autoScaleConfig struct {
 type listenConfig struct {
 	ListenAddr string `yaml:"address"`
 	Port       int    `yaml:"port"`
-	NetType    string `yaml:"type"`
 }
 
 type Config struct {
-	Listen    listenConfig    `yaml:"listen"`
-	AutoScale autoScaleConfig `yaml:"autoScale"`
+	IngressType string          `yaml:"ingressType"`
+	Listen      listenConfig    `yaml:"listen"`
+	AutoScale   autoScaleConfig `yaml:"autoScale"`
 }
 
 func (c *Config) String() string {
@@ -73,6 +74,10 @@ func (c *Config) getEnvConfig() {
 	sliceTime, err := strconv.Atoi(os.Getenv("SLICE_TIME"))
 	if err == nil {
 		c.AutoScale.SliceSecond = sliceTime
+	}
+	ingressType := os.Getenv("INGRESS_TYPE")
+	if ingressType != "" {
+		c.IngressType = ingressType
 	}
 }
 

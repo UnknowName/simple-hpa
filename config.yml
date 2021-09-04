@@ -1,8 +1,8 @@
 listen:
   port: 514
   address: 0.0.0.0
-  # 暂时只支持udp，改了也没用
-  type: udp
+
+ingressType: nginx
 
 autoScale:
   # 限制最高Pod数
