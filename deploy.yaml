@@ -22,6 +22,8 @@ spec:
           env:
           - name: TZ
             value: "Asia/Shanghai"
+          - name: INGRESS_TYPE
+            value: "nginx"
           - name: MIN_POD
             value: "1"
           - name: MAX_POD
