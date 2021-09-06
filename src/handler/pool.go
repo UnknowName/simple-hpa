@@ -92,7 +92,7 @@ func (ph *PoolHandler) startWorkers() {
 					accessChan := worker.parseData(byteData)
 					accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services)
 					qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord)
-					go utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
+					utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
 				}
 			}
 		}(i, worker)
