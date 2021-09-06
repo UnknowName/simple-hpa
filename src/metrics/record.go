@@ -45,7 +45,6 @@ func (r *ScaleRecord) isState(state svcState) bool {
 	default:
 		panic(fmt.Sprintf("un know state, %v", state))
 	}
-	// TODO 队列里面的数据还是历史的，如果没有更新请求进来，会一直保留着，要加个时间，清理掉过期的数据
 	for _, qpsDict := range r.latestQps {
 		for qpsTime, qps := range qpsDict {
 			if qpsTime.After(time.Now()) && qps > value {

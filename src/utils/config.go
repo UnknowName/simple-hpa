@@ -26,6 +26,7 @@ type listenConfig struct {
 }
 
 type Config struct {
+	AvgTime     int             `yaml:"avgTime"`
 	IngressType string          `yaml:"ingressType"`
 	Listen      listenConfig    `yaml:"listen"`
 	AutoScale   autoScaleConfig `yaml:"autoScale"`
@@ -45,6 +46,12 @@ func (c *Config) valid() {
 	if c.AutoScale.MinPod < 1 {
 		log.Println("warning, minPod < 1, use 1")
 		c.AutoScale.MinPod = 1
+	}
+	if c.AvgTime <= 0 {
+		panic("config error, the avgTime <= 0")
+	}
+	if c.IngressType == "" {
+		panic("config error, the Config.IngressType not defined")
 	}
 }
 
@@ -74,6 +81,10 @@ func (c *Config) getEnvConfig() {
 	sliceTime, err := strconv.Atoi(os.Getenv("SLICE_TIME"))
 	if err == nil {
 		c.AutoScale.SliceSecond = sliceTime
+	}
+	avgTime, err := strconv.Atoi(os.Getenv("AVG_TIME"))
+	if err == nil && avgTime > 0 {
+		c.AvgTime = avgTime
 	}
 	ingressType := os.Getenv("INGRESS_TYPE")
 	if ingressType != "" {

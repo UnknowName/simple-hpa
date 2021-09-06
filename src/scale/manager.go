@@ -14,7 +14,7 @@ import (
 func getClient() (*kubernetes.Clientset, error) {
 	client, err := getClientOutCluster()
 	if err == nil {
-		log.Println("fond the config file,guess out cluster")
+		log.Println("fond the kube config file,guess out cluster")
 		return client, nil
 	}
 	log.Println("guess in cluster")

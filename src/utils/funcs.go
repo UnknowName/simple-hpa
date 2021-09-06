@@ -16,16 +16,16 @@ func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime, sleepTime t
 				if qps == nil {
 					continue
 				}
-				log.Printf("%s current qps=%.2f 2 second active pod=%d", svc, qps.AvgQps(), qps.GetPodCount())
+				log.Printf("%s latest 5 second avg qps=%.2f 2 second active pod=%d", svc, qps.AvgQps(), qps.GetPodCount())
 			}
 		}
-		time.Sleep(sleepTime)
+		// time.Sleep(sleepTime)
 	}
 }
 
 func AutoScaleByQPS(scaleRecord map[string]*metrics.ScaleRecord,
-	checkTime time.Duration, sleepTime time.Duration,
-	k8sClient *scale.K8SClient, config *Config) {
+	sleepTime time.Duration, k8sClient *scale.K8SClient, config *Config) {
+	checkTime := time.Second * time.Duration(config.AutoScale.SliceSecond) + time.Millisecond * 211
 	for {
 		select {
 		case <-time.Tick(checkTime):
