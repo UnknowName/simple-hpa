@@ -10,6 +10,7 @@ import (
 
 func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime, sleepTime time.Duration) {
 	for {
+		log.Println("DisplayQPS ...")
 		select {
 		case <-time.Tick(echoTime):
 			for svc, qps := range calcuRecord {
@@ -25,8 +26,9 @@ func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime, sleepTime t
 
 func AutoScaleByQPS(scaleRecord map[string]*metrics.ScaleRecord,
 	sleepTime time.Duration, k8sClient *scale.K8SClient, config *Config) {
-	checkTime := time.Second * time.Duration(config.AutoScale.SliceSecond) + time.Millisecond * 211
+	checkTime := time.Second*time.Duration(config.AutoScale.SliceSecond) + time.Millisecond*211
 	for {
+		log.Println("AutoScaleByQPS ...")
 		select {
 		case <-time.Tick(checkTime):
 			for svc, scRecord := range scaleRecord {

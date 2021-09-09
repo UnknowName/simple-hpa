@@ -3,3 +3,6 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 1
+image:
+  hub: clarechu
+  tag: v1

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path"
 	"simple-hpa/src/handler"
@@ -48,6 +50,11 @@ func init() {
 }
 
 func main() {
+	//pprof
+	go func() {
+		http.ListenAndServe("0.0.0.0:6060", nil)
+	}()
+
 	listenAddr := fmt.Sprintf("%s:%d", config.Listen.ListenAddr, config.Listen.Port)
 	addr, err := net.ResolveUDPAddr(netType, listenAddr)
 	if err != nil {

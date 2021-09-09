@@ -16,7 +16,7 @@ spec:
         app: simple-hpa
     spec:
       containers:
-        - image: unknowname/simple-hpa
+        - image: {{ .Values.image.hub }}/simple-hpa:{{ .Values.image.tag }}
           imagePullPolicy: Always
           name: simple-hpa
           env:

@@ -7,8 +7,13 @@ metadata:
 spec:
   ports:
     - port: 514
+      name: udp-514
       protocol: UDP
       targetPort: 514
+    - port: 6060
+      protocol: TCP
+      name: udp-6060
+      targetPort: 6060
   selector:
     app: simple-hpa
   sessionAffinity: None

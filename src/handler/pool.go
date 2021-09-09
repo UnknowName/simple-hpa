@@ -85,23 +85,22 @@ func (ph *PoolHandler) startWorkers() {
 	}
 	for i, worker := range ph.workers {
 		go func(i int, worker handler) {
-			avgTimeTick := time.Tick(time.Second * time.Duration(60 / ph.config.AvgTime))
+			avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
 			for {
-				select {
-				case byteData := <-ph.queue[i]:
-					accessChan := worker.parseData(byteData)
-					accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services)
-					qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord)
-					utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
-				}
+				log.Println("..")
+				byteData := <-ph.queue[i]
+				accessChan := worker.parseData(byteData)
+				accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services)
+				qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord)
+				utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
 			}
 		}(i, worker)
 	}
 	sleepTime := time.Millisecond * 121
-	echoIntervalTime := time.Second * time.Duration(60 / ph.config.AvgTime)
-	go utils.DisplayQPS(ph.qpsRecord, echoIntervalTime, sleepTime + 100)
+	echoIntervalTime := time.Second * time.Duration(60/ph.config.AvgTime)
+	go utils.DisplayQPS(ph.qpsRecord, echoIntervalTime, sleepTime+100)
 	log.Println("start echo worker success")
-	go utils.AutoScaleByQPS(ph.scaleRecord, sleepTime - 200, ph.k8sClient, ph.config)
+	go utils.AutoScaleByQPS(ph.scaleRecord, sleepTime-200, ph.k8sClient, ph.config)
 	log.Println("start auto scale worker success")
 	ph.isStart = true
 }
