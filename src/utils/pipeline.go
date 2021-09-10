@@ -43,6 +43,7 @@ func FilterService(itemChan <-chan ingress.Access, services []string) <-chan ing
 		defer close(channel)
 		data := <-itemChan
 		if data == nil {
+			log.Println("data is nil")
 			return
 		}
 		for _, service := range services {
