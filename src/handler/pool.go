@@ -87,7 +87,6 @@ func (ph *PoolHandler) startWorkers() {
 		go func(i int, worker handler) {
 			avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
 			for {
-				log.Println("..")
 				byteData := <-ph.queue[i]
 				accessChan := worker.parseData(byteData)
 				accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services)

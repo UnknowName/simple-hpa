@@ -12,5 +12,5 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: default
-    namespace: demo
+    namespace: {{ .Values.namespace }}
 ---

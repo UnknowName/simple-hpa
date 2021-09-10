@@ -33,7 +33,7 @@ spec:
             - name: SAFE_QPS
               value: "5"
             - name: SCALE_SERVICES
-              value: "demo-dev.daohao,default.test"
+              value: service-mesh.solar-controller
           ports:
             - containerPort: 514
               name: rsyslog
