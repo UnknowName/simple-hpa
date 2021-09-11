@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"log"
 	"net"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"path"
 	"simple-hpa/src/handler"
 	"simple-hpa/src/scale"
+	"simple-hpa/src/tracer"
 	"simple-hpa/src/utils"
 )
 
@@ -31,14 +33,22 @@ var (
 	k8sClient *scale.K8SClient
 )
 
-var configpath *string
+type Server struct {
+	configpath  string
+	serviceName string
+	tracerURL   string
+}
+
+var server *Server
 
 func init() {
-	configpath = new(string)
-	flag.StringVar(configpath, "config", "./config.yaml", "config path ...")
+	server = new(Server)
+	flag.StringVar(&server.configpath, "config", "./config.yaml", "config path ...")
+	flag.StringVar(&server.serviceName, "svc", "simple-hpa", "simple service name")
+	flag.StringVar(&server.tracerURL, "trace", "jaeger.jaeger-infra:5775", "trace url")
 	flag.Parse()
 	pwd, _ := os.Getwd()
-	cfg := path.Join(pwd, *configpath)
+	cfg := path.Join(pwd, server.configpath)
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
 	if config.AutoScale.Services == nil || len(config.AutoScale.Services) == 0 {
@@ -50,6 +60,9 @@ func init() {
 }
 
 func main() {
+	tracerService, closer := tracer.New(server.serviceName, server.tracerURL)
+	defer closer.Close()
+	opentracing.SetGlobalTracer(tracerService)
 	//pprof
 	go func() {
 		http.ListenAndServe("0.0.0.0:6060", nil)

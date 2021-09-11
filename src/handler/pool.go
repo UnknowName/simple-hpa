@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"github.com/opentracing/opentracing-go"
+	"golang.org/x/net/context"
 	"log"
 	"simple-hpa/src/ingress"
 	"simple-hpa/src/metrics"
@@ -19,7 +21,7 @@ const (
 )
 
 type handler interface {
-	parseData([]byte) <-chan ingress.Access
+	parseData([]byte, context.Context) <-chan ingress.Access
 }
 
 func newDataHandler(ingressType IngressType) handler {
@@ -88,10 +90,13 @@ func (ph *PoolHandler) startWorkers() {
 			avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
 			for {
 				byteData := <-ph.queue[i]
-				accessChan := worker.parseData(byteData)
-				accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services)
-				qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord)
+				ctx, cancel := context.WithCancel(context.TODO())
+				_, sctx := opentracing.StartSpanFromContext(ctx, "worker")
+				accessChan := worker.parseData(byteData, sctx)
+				accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services, sctx)
+				qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord, sctx)
 				utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
+				cancel()
 			}
 		}(i, worker)
 	}
