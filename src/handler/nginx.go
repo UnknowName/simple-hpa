@@ -7,7 +7,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"log"
 	"simple-hpa/src/ingress"
-	"time"
 )
 
 type nginxDataHandler struct {
@@ -16,7 +15,7 @@ type nginxDataHandler struct {
 	ingressType IngressType
 }
 
-func (ndh *nginxDataHandler) parseData(data []byte, context context.Context) <-chan ingress.Access {
+func (ndh *nginxDataHandler) parseData(data []byte, services []string, filter FilterFunc, context context.Context) <-chan ingress.Access {
 	span, ctx := opentracing.StartSpanFromContext(context, "parseData")
 	span.LogKV("parseData", "start")
 	channel := make(chan ingress.Access)
@@ -39,18 +38,18 @@ func (ndh *nginxDataHandler) parseData(data []byte, context context.Context) <-c
 		accessItem := new(ingress.NGINXAccess)
 		// JSON化之前，去掉URL里面的中文\x
 		span.LogKV("parseData", "json unmarshal start")
-		time1 := time.Now().Unix()
 		if err := json.Unmarshal(bytes.ReplaceAll(jsonByte, []byte("\\x"), []byte("")), accessItem); err != nil {
 			log.Println("To json failed ", err, "origin string:", string(jsonByte))
 			return
 		}
 		span.LogKV("parseData", "json unmarshal complete")
-		time2 := time.Now().Unix()
-		log.Printf("time: %d \n", time2-time1)
 		if accessItem.ServiceName() == "." {
 			return
 		}
-		channel <- accessItem
+		cha := filter(accessItem, services, ctx)
+		if cha != nil {
+			channel <- accessItem
+		}
 	}()
 	return channel
 }
