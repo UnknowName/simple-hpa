@@ -21,3 +21,4 @@ autoScale:
     - namespace.deployName
     - default.sample-app
     - demo-dev.daohao
+    - demo.client

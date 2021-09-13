@@ -2,11 +2,14 @@ package utils
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/opentracing/opentracing-go"
 	"log"
 	"simple-hpa/src/ingress"
 	"simple-hpa/src/metrics"
+	"sync"
 	"time"
 )
 
@@ -37,19 +40,30 @@ func ParseUDPData(data []byte) <-chan ingress.Access {
 	return channel
 }
 
-func FilterService(itemChan <-chan ingress.Access, services []string) <-chan ingress.Access {
+func FilterService(itemChan <-chan ingress.Access, services []string, parent context.Context) <-chan ingress.Access {
+	span, ctx := opentracing.StartSpanFromContext(parent, "filterService")
+	span.LogKV("filterService", "start")
 	channel := make(chan ingress.Access)
 	go func() {
+		defer func() {
+			ctx.Done()
+			span.Finish()
+		}()
+		span.LogKV("filterService", "go func")
 		defer close(channel)
 		data := <-itemChan
 		if data == nil {
+			log.Println("data is nil")
 			return
 		}
 		for _, service := range services {
 			if data.ServiceName() == service {
+				span.LogKV("filterService", "data.ServiceName() == service")
 				channel <- data
+				span.LogKV("filterService", "complete ...")
 			}
 		}
+
 	}()
 	return channel
 }
@@ -64,13 +78,24 @@ func (si *serviceInfo) String() string {
 	return fmt.Sprintf("serviceInfo{Name=%s,qps=%f,pod=%d)", si.Name, si.AvgQps, si.PodCount)
 }
 
+var a int
+
+var mutex sync.Mutex
+
 func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
-	qpsRecord map[string]*metrics.Calculate) <-chan *serviceInfo {
+	qpsRecord map[string]*metrics.Calculate, parent context.Context) <-chan *serviceInfo {
+	span, ctx := opentracing.StartSpanFromContext(parent, "CalculateQPS")
+	span.LogKV("CalculateQPS", "start")
 	channel := make(chan *serviceInfo)
 	go func() {
+		defer func() {
+			ctx.Done()
+			span.Finish()
+		}()
 		defer close(channel)
 		select {
 		case item := <-data:
+			span.LogKV("CalculateQPS", "get data success")
 			if item == nil {
 				return
 			}
@@ -80,9 +105,20 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 				qpsRecord[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime())
 			}
 		case <-timeTick:
+			span.LogKV("CalculateQPS", "time tick")
+			span1, ctx1 := opentracing.StartSpanFromContext(parent, "CalculateQPS")
+			defer func() {
+				ctx1.Done()
+				span1.Finish()
+			}()
+			mutex.Lock()
+			a = a + 1
+			span1.LogKV("tick", fmt.Sprintf("number --> %d", a))
+			mutex.Unlock()
 			for service, calculate := range qpsRecord {
 				channel <- &serviceInfo{Name: service, AvgQps: calculate.AvgQps(), PodCount: calculate.GetPodCount()}
 			}
+			span1.LogKV("tick", "complete")
 		}
 	}()
 	return channel

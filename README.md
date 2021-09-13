@@ -47,7 +47,6 @@ data:
                           "hostname": "$host",
                           "namespace": "$namespace",
                           "service": "$service_name"}'
-...
  ```
 
 The follow field must present

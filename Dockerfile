@@ -10,7 +10,7 @@ RUN cd /simple-hpa \
 FROM debian
 
 COPY --from=builder /simple-hpa/simple-hpa /simple-hpa
-COPY --from=builder /simple-hpa/config.yml /config.yml
+COPY --from=builder /simple-hpa/config.yaml /config.yaml
 
 EXPOSE 514/udp
 
