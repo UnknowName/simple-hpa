@@ -40,32 +40,19 @@ func ParseUDPData(data []byte) <-chan ingress.Access {
 	return channel
 }
 
-func FilterService(itemChan <-chan ingress.Access, services []string, parent context.Context) <-chan ingress.Access {
+func FilterService(itemChan ingress.Access, services []string, parent context.Context) ingress.Access {
 	span, ctx := opentracing.StartSpanFromContext(parent, "filterService")
+	defer ctx.Done()
 	span.LogKV("filterService", "start")
-	channel := make(chan ingress.Access)
-	go func() {
-		defer func() {
-			ctx.Done()
-			span.Finish()
-		}()
-		span.LogKV("filterService", "go func")
-		defer close(channel)
-		data := <-itemChan
-		if data == nil {
-			log.Println("data is nil")
-			return
+	span.LogKV("filterService", "go func")
+	for _, service := range services {
+		if itemChan.ServiceName() == service {
+			span.LogKV("filterService", "data.ServiceName() == service")
+			return itemChan
+			span.LogKV("filterService", "complete ...")
 		}
-		for _, service := range services {
-			if data.ServiceName() == service {
-				span.LogKV("filterService", "data.ServiceName() == service")
-				channel <- data
-				span.LogKV("filterService", "complete ...")
-			}
-		}
-
-	}()
-	return channel
+	}
+	return nil
 }
 
 type serviceInfo struct {
@@ -104,7 +91,7 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 			} else {
 				qpsRecord[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime())
 			}
-		case <-timeTick:
+			/*case <-timeTick:
 			span.LogKV("CalculateQPS", "time tick")
 			span1, ctx1 := opentracing.StartSpanFromContext(parent, "CalculateQPS")
 			defer func() {
@@ -118,7 +105,7 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 			for service, calculate := range qpsRecord {
 				channel <- &serviceInfo{Name: service, AvgQps: calculate.AvgQps(), PodCount: calculate.GetPodCount()}
 			}
-			span1.LogKV("tick", "complete")
+			span1.LogKV("tick", "complete")*/
 		}
 	}()
 	return channel

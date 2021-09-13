@@ -21,7 +21,7 @@ const (
 )
 
 type handler interface {
-	parseData([]byte, context.Context) <-chan ingress.Access
+	parseData([]byte, []string, FilterFunc, context.Context) <-chan ingress.Access
 }
 
 func newDataHandler(ingressType IngressType) handler {
@@ -81,6 +81,8 @@ func (ph *PoolHandler) Execute(data []byte) {
 	ph.queue[index] <- data
 }
 
+type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
+
 func (ph *PoolHandler) startWorkers() {
 	if ph.isStart {
 		return
@@ -92,9 +94,9 @@ func (ph *PoolHandler) startWorkers() {
 				byteData := <-ph.queue[i]
 				ctx, cancel := context.WithCancel(context.TODO())
 				_, sctx := opentracing.StartSpanFromContext(ctx, "worker")
-				accessChan := worker.parseData(byteData, sctx)
-				accessChan = utils.FilterService(accessChan, ph.config.AutoScale.Services, sctx)
-				qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, ph.qpsRecord, sctx)
+				a := worker.parseData(byteData, ph.config.AutoScale.Services, utils.FilterService, sctx)
+				//b := utils.FilterService(a, ph.config.AutoScale.Services, sctx)
+				qpsChan := utils.CalculateQPS(a, avgTimeTick, ph.qpsRecord, sctx)
 				utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
 				cancel()
 			}
