@@ -61,6 +61,7 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 		scaleRecord: make(map[string]*metrics.ScaleRecord),
 	}
 	poolHandler.startWorkers()
+	poolHandler.startProvider()
 	return poolHandler
 }
 
@@ -89,15 +90,14 @@ func (ph *PoolHandler) startWorkers() {
 	}
 	for i, worker := range ph.workers {
 		go func(i int, worker handler) {
-			avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
 			for {
 				byteData := <-ph.queue[i]
 				ctx, cancel := context.WithCancel(context.TODO())
 				_, sctx := opentracing.StartSpanFromContext(ctx, "worker")
 				a := worker.parseData(byteData, ph.config.AutoScale.Services, utils.FilterService, sctx)
 				//b := utils.FilterService(a, ph.config.AutoScale.Services, sctx)
-				qpsChan := utils.CalculateQPS(a, avgTimeTick, ph.qpsRecord, sctx)
-				utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
+				utils.CalculateQPS(a, ph.qpsRecord, sctx)
+				//utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
 				cancel()
 			}
 		}(i, worker)
@@ -109,4 +109,10 @@ func (ph *PoolHandler) startWorkers() {
 	go utils.AutoScaleByQPS(ph.scaleRecord, sleepTime-200, ph.k8sClient, ph.config)
 	log.Println("start auto scale worker success")
 	ph.isStart = true
+}
+
+func (ph *PoolHandler) startProvider() {
+	go func() {
+		utils.Provider(ph.config.AvgTime, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.qpsRecord, ph.scaleRecord)
+	}()
 }
