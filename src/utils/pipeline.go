@@ -9,7 +9,6 @@ import (
 	"log"
 	"simple-hpa/src/ingress"
 	"simple-hpa/src/metrics"
-	"sync"
 	"time"
 )
 
@@ -49,7 +48,7 @@ func FilterService(itemChan ingress.Access, services []string, parent context.Co
 		if itemChan.ServiceName() == service {
 			span.LogKV("filterService", "data.ServiceName() == service")
 			return itemChan
-			span.LogKV("filterService", "complete ...")
+			// span.LogKV("filterService", "complete ...")
 		}
 	}
 	return nil
@@ -65,15 +64,15 @@ func (si *serviceInfo) String() string {
 	return fmt.Sprintf("serviceInfo{Name=%s,qps=%f,pod=%d)", si.Name, si.AvgQps, si.PodCount)
 }
 
-var a int
+// var a int
 
-var mutex sync.Mutex
+// var mutex sync.Mutex
 
 func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 	qpsRecord map[string]*metrics.Calculate, parent context.Context) <-chan *serviceInfo {
 	span, ctx := opentracing.StartSpanFromContext(parent, "CalculateQPS")
 	span.LogKV("CalculateQPS", "start")
-	channel := make(chan *serviceInfo)
+	channel := make(chan *serviceInfo, 1024)
 	go func() {
 		defer func() {
 			ctx.Done()
@@ -91,21 +90,21 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 			} else {
 				qpsRecord[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime())
 			}
-			/*case <-timeTick:
+		case <-timeTick:
 			span.LogKV("CalculateQPS", "time tick")
 			span1, ctx1 := opentracing.StartSpanFromContext(parent, "CalculateQPS")
 			defer func() {
 				ctx1.Done()
 				span1.Finish()
 			}()
-			mutex.Lock()
-			a = a + 1
-			span1.LogKV("tick", fmt.Sprintf("number --> %d", a))
-			mutex.Unlock()
+			// mutex.Lock()
+			// a = a + 1
+			// span1.LogKV("tick", fmt.Sprintf("number --> %d", a))
+			// mutex.Unlock()
 			for service, calculate := range qpsRecord {
 				channel <- &serviceInfo{Name: service, AvgQps: calculate.AvgQps(), PodCount: calculate.GetPodCount()}
 			}
-			span1.LogKV("tick", "complete")*/
+			span1.LogKV("tick", "complete")
 		}
 	}()
 	return channel
@@ -114,6 +113,7 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64, scaleRecord map[string]*metrics.ScaleRecord) {
 	select {
 	case data := <-qpsChan:
+		// log.Println("record qps ", data)
 		if data == nil {
 			return
 		}

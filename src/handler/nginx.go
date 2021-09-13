@@ -53,3 +53,28 @@ func (ndh *nginxDataHandler) parseData(data []byte, services []string, filter Fi
 	}()
 	return channel
 }
+
+
+func (ndh *nginxDataHandler) parseDataNew(data []byte, services []string) ingress.Access {
+	byteStrings := bytes.Split(data, ndh.logKey)
+	if len(byteStrings) != 2 {
+		log.Println("Not NGINX Ingress data, origin string is:", string(data))
+		return nil
+	}
+	jsonByte := byteStrings[1]
+	if !bytes.HasPrefix(jsonByte, []byte("{")) {
+		return nil
+	}
+	accessItem := new(ingress.NGINXAccess)
+	// JSON化之前，去掉URL里面的中文\x
+	if err := json.Unmarshal(bytes.ReplaceAll(jsonByte, []byte("\\x"), []byte("")), accessItem); err != nil {
+		log.Println("To json failed ", err, "origin string:", string(jsonByte))
+		return nil
+	}
+	for _, service := range services {
+		if service == accessItem.ServiceName() {
+			return accessItem
+		}
+	}
+	return nil
+}

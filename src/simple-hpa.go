@@ -27,6 +27,7 @@ const (
 
 var (
 	config *utils.Config
+	server *Server
 	// 使用Pipeline处理
 	// calcuRecord map[string]*metrics.Calculate
 	// scaleRecord map[string]*metrics.ScaleRecord
@@ -34,21 +35,19 @@ var (
 )
 
 type Server struct {
-	configpath  string
+	configPath  string
 	serviceName string
 	tracerURL   string
 }
 
-var server *Server
-
 func init() {
 	server = new(Server)
-	flag.StringVar(&server.configpath, "config", "./config.yaml", "config path ...")
+	flag.StringVar(&server.configPath, "config", "./config.yaml", "config path ...")
 	flag.StringVar(&server.serviceName, "svc", "simple-hpa", "simple service name")
 	flag.StringVar(&server.tracerURL, "trace", "jaeger.jaeger-infra:5775", "trace url")
 	flag.Parse()
 	pwd, _ := os.Getwd()
-	cfg := path.Join(pwd, server.configpath)
+	cfg := path.Join(pwd, server.configPath)
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
 	if config.AutoScale.Services == nil || len(config.AutoScale.Services) == 0 {
@@ -109,5 +108,6 @@ func main() {
 		*/
 		// 使用工作池处理，限制协程数量
 		poolHandler.Execute(buf[:n])
+
 	}
 }
