@@ -6,8 +6,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"log"
 	"net"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path"
 	"simple-hpa/src/handler"
@@ -27,6 +25,7 @@ const (
 
 var (
 	config *utils.Config
+	server *Server
 	// 使用Pipeline处理
 	// calcuRecord map[string]*metrics.Calculate
 	// scaleRecord map[string]*metrics.ScaleRecord
@@ -34,21 +33,19 @@ var (
 )
 
 type Server struct {
-	configpath  string
+	configPath  string
 	serviceName string
 	tracerURL   string
 }
 
-var server *Server
-
 func init() {
 	server = new(Server)
-	flag.StringVar(&server.configpath, "config", "./config.yaml", "config path ...")
+	flag.StringVar(&server.configPath, "config", "./config.yaml", "config path ...")
 	flag.StringVar(&server.serviceName, "svc", "simple-hpa", "simple service name")
 	flag.StringVar(&server.tracerURL, "trace", "jaeger.jaeger-infra:5775", "trace url")
 	flag.Parse()
 	pwd, _ := os.Getwd()
-	cfg := path.Join(pwd, server.configpath)
+	cfg := path.Join(pwd, server.configPath)
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
 	if config.AutoScale.Services == nil || len(config.AutoScale.Services) == 0 {
@@ -63,11 +60,6 @@ func main() {
 	tracerService, closer := tracer.New(server.serviceName, server.tracerURL)
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracerService)
-	//pprof
-	go func() {
-		http.ListenAndServe("0.0.0.0:6060", nil)
-	}()
-
 	listenAddr := fmt.Sprintf("%s:%d", config.Listen.ListenAddr, config.Listen.Port)
 	addr, err := net.ResolveUDPAddr(netType, listenAddr)
 	if err != nil {

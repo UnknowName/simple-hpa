@@ -53,6 +53,9 @@ func (c *Config) valid() {
 	if c.IngressType == "" {
 		panic("config error, the Config.IngressType not defined")
 	}
+	if c.AutoScale.Services == nil {
+		c.AutoScale.Services = make([]string, 0)
+	}
 }
 
 // env优先级大于config.yml，这样在容器环境中，只需要修改env而不要重新打包镜像

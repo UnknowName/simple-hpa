@@ -1,17 +1,19 @@
 package handler
 
 import (
-	"github.com/opentracing/opentracing-go"
 	"golang.org/x/net/context"
 	"log"
+	"time"
+
 	"simple-hpa/src/ingress"
 	"simple-hpa/src/metrics"
 	"simple-hpa/src/scale"
 	"simple-hpa/src/utils"
-	"time"
 )
 
 type IngressType uint8
+
+type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
 
 const (
 	defaultQueueSize             = 1024
@@ -22,6 +24,7 @@ const (
 
 type handler interface {
 	parseData([]byte, []string, FilterFunc, context.Context) <-chan ingress.Access
+	parseDataWithFilter([]byte, []string) ingress.Access
 }
 
 func newDataHandler(ingressType IngressType) handler {
@@ -77,12 +80,30 @@ type PoolHandler struct {
 	scaleRecord map[string]*metrics.ScaleRecord
 }
 
+func (ph *PoolHandler) startRecord() {
+	avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
+	for {
+		select {
+		case <-avgTimeTick:
+			for service, calculate := range ph.qpsRecord {
+				if v, exist := ph.scaleRecord[service]; exist {
+					v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
+				} else {
+					ph.scaleRecord[service] = metrics.NewScaleRecord(ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS)
+				}
+			}
+		}
+	}
+}
+
+func (ph *PoolHandler) startEcho(echoTime time.Duration) {
+	utils.DisplayQPS(ph.qpsRecord, echoTime)
+}
+
 func (ph *PoolHandler) Execute(data []byte) {
 	index := time.Now().UnixMilli() % defaultPoolSize
 	ph.queue[index] <- data
 }
-
-type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
 
 func (ph *PoolHandler) startWorkers() {
 	if ph.isStart {
@@ -92,21 +113,20 @@ func (ph *PoolHandler) startWorkers() {
 		go func(i int, worker handler) {
 			for {
 				byteData := <-ph.queue[i]
-				ctx, cancel := context.WithCancel(context.TODO())
-				_, sctx := opentracing.StartSpanFromContext(ctx, "worker")
-				a := worker.parseData(byteData, ph.config.AutoScale.Services, utils.FilterService, sctx)
-				//b := utils.FilterService(a, ph.config.AutoScale.Services, sctx)
-				utils.CalculateQPS(a, ph.qpsRecord, sctx)
-				//utils.RecordQps(qpsChan, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.scaleRecord)
-				cancel()
+				accessItem := worker.parseDataWithFilter(byteData, ph.config.AutoScale.Services)
+				if accessItem == nil {
+					continue
+				}
+				calculateQPS(accessItem, &ph.qpsRecord)
 			}
 		}(i, worker)
 	}
-	sleepTime := time.Millisecond * 121
 	echoIntervalTime := time.Second * time.Duration(60/ph.config.AvgTime)
-	go utils.DisplayQPS(ph.qpsRecord, echoIntervalTime, sleepTime+100)
+	go ph.startRecord()
+	log.Println("start record qps worker success")
+	go ph.startEcho(echoIntervalTime)
 	log.Println("start echo worker success")
-	go utils.AutoScaleByQPS(ph.scaleRecord, sleepTime-200, ph.k8sClient, ph.config)
+	go utils.AutoScaleByQPS(&ph.scaleRecord, ph.k8sClient, ph.config)
 	log.Println("start auto scale worker success")
 	ph.isStart = true
 }

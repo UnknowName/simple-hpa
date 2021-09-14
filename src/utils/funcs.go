@@ -8,9 +8,8 @@ import (
 	"time"
 )
 
-func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime, sleepTime time.Duration) {
+func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime time.Duration) {
 	for {
-		log.Println("DisplayQPS ...")
 		select {
 		case <-time.Tick(echoTime):
 			for svc, qps := range calcuRecord {
@@ -20,18 +19,16 @@ func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime, sleepTime t
 				log.Printf("%s latest 5 second avg qps=%.2f 2 second active pod=%d", svc, qps.AvgQps(), qps.GetPodCount())
 			}
 		}
-		// time.Sleep(sleepTime)
 	}
 }
 
-func AutoScaleByQPS(scaleRecord map[string]*metrics.ScaleRecord,
-	sleepTime time.Duration, k8sClient *scale.K8SClient, config *Config) {
+func AutoScaleByQPS(scaleRecord *map[string]*metrics.ScaleRecord, k8sClient *scale.K8SClient, config *Config) {
 	checkTime := time.Second*time.Duration(config.AutoScale.SliceSecond) + time.Millisecond*211
+	dict := *scaleRecord
 	for {
-		log.Println("AutoScaleByQPS ...")
 		select {
 		case <-time.Tick(checkTime):
-			for svc, scRecord := range scaleRecord {
+			for svc, scRecord := range dict {
 				log.Printf("%s is safe=%t is wasteful=%t", svc, scRecord.IsSafe(), scRecord.IsWasteful())
 				if (!scRecord.IsSafe() || scRecord.IsWasteful()) && scRecord.Interval() {
 					// 说明过量或者过少，都要调整，但是这里记录下上次调整的时间节点，防止频繁的改动
@@ -66,9 +63,7 @@ func AutoScaleByQPS(scaleRecord map[string]*metrics.ScaleRecord,
 						}
 					}()
 				}
-				time.Sleep(sleepTime)
 			}
 		}
-		time.Sleep(sleepTime)
 	}
 }
