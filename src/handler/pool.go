@@ -64,7 +64,6 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 		scaleRecord: make(map[string]*metrics.ScaleRecord),
 	}
 	poolHandler.startWorkers()
-	poolHandler.startProvider()
 	return poolHandler
 }
 
@@ -97,7 +96,7 @@ func (ph *PoolHandler) startRecord() {
 }
 
 func (ph *PoolHandler) startEcho(echoTime time.Duration) {
-	utils.DisplayQPS(ph.qpsRecord, echoTime)
+	utils.DisplayQPS(&ph.qpsRecord, echoTime)
 }
 
 func (ph *PoolHandler) Execute(data []byte) {
@@ -129,10 +128,4 @@ func (ph *PoolHandler) startWorkers() {
 	go utils.AutoScaleByQPS(&ph.scaleRecord, ph.k8sClient, ph.config)
 	log.Println("start auto scale worker success")
 	ph.isStart = true
-}
-
-func (ph *PoolHandler) startProvider() {
-	go func() {
-		utils.Provider(ph.config.AvgTime, ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS, ph.qpsRecord, ph.scaleRecord)
-	}()
 }

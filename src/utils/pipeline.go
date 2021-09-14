@@ -54,8 +54,11 @@ func FilterService(itemChan ingress.Access, services []string, parent context.Co
 	return nil
 }
 
-
-
+type serviceInfo struct {
+	Name string
+	AvgQps float64
+	PodCount int32
+}
 
 func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 	qpsRecord map[string]*metrics.Calculate, parent context.Context) <-chan *serviceInfo {

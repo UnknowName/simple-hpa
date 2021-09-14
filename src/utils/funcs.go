@@ -8,11 +8,12 @@ import (
 	"time"
 )
 
-func DisplayQPS(calcuRecord map[string]*metrics.Calculate, echoTime time.Duration) {
+func DisplayQPS(calcuRecord *map[string]*metrics.Calculate, echoTime time.Duration) {
+	dict := *calcuRecord
 	for {
 		select {
 		case <-time.Tick(echoTime):
-			for svc, qps := range calcuRecord {
+			for svc, qps := range dict {
 				if qps == nil {
 					continue
 				}
