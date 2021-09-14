@@ -54,8 +54,7 @@ func (ndh *nginxDataHandler) parseData(data []byte, services []string, filter Fi
 	return channel
 }
 
-
-func (ndh *nginxDataHandler) parseDataNew(data []byte, services []string) ingress.Access {
+func (ndh *nginxDataHandler) parseDataWithFilter(data []byte, services []string) ingress.Access {
 	byteStrings := bytes.Split(data, ndh.logKey)
 	if len(byteStrings) != 2 {
 		log.Println("Not NGINX Ingress data, origin string is:", string(data))

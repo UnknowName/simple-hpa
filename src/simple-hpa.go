@@ -6,8 +6,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"log"
 	"net"
-	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"path"
 	"simple-hpa/src/handler"
@@ -62,11 +60,6 @@ func main() {
 	tracerService, closer := tracer.New(server.serviceName, server.tracerURL)
 	defer closer.Close()
 	opentracing.SetGlobalTracer(tracerService)
-	//pprof
-	go func() {
-		http.ListenAndServe("0.0.0.0:6060", nil)
-	}()
-
 	listenAddr := fmt.Sprintf("%s:%d", config.Listen.ListenAddr, config.Listen.Port)
 	addr, err := net.ResolveUDPAddr(netType, listenAddr)
 	if err != nil {
@@ -108,6 +101,5 @@ func main() {
 		*/
 		// 使用工作池处理，限制协程数量
 		poolHandler.Execute(buf[:n])
-
 	}
 }
