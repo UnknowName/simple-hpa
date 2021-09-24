@@ -40,6 +40,13 @@ spec:
               protocol: UDP
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "30Mi"
+            limits:
+              cpu: "1000m"
+              memory: "100Mi"
       dnsPolicy: ClusterFirst
       restartPolicy: Always
       securityContext: {}
