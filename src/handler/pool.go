@@ -81,10 +81,11 @@ type PoolHandler struct {
 
 func (ph *PoolHandler) startRecord() {
 	avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.AvgTime))
+	dict := &ph.qpsRecord
 	for {
 		select {
 		case <-avgTimeTick:
-			for service, calculate := range ph.qpsRecord {
+			for service, calculate := range *dict {
 				if v, exist := ph.scaleRecord[service]; exist {
 					v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
 				} else {
