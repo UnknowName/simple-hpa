@@ -1,8 +1,10 @@
 # Simple HPA Base Ingress Access Log
 
-Support `NGINX Ingress`
+## Running Demo
 
-## How to Use
+![Demo](./manifests/demo.jpg)
+
+Support `NGINX Ingress`
 
 ## Requirement
 

@@ -22,3 +22,5 @@ autoScale:
     - default.sample-app
     - demo-dev.daohao
     - demo.client
+
+# Deployment指定的environment优先级会高于config.yaml
