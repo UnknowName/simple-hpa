@@ -22,6 +22,8 @@ spec:
           env:
           - name: TZ
             value: "Asia/Shanghai"
+          - name: AVG_TIME
+            value: "5"
           - name: INGRESS_TYPE
             value: "nginx"
           - name: MIN_POD

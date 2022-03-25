@@ -15,6 +15,6 @@ func calculateQPS(item ingress.Access, qpsRecord *map[string]*metrics.Calculate)
 	if record, exist := dict[item.ServiceName()]; exist {
 		record.Update(item.Upstream(), item.AccessTime())
 	} else {
-		dict[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime())
+		dict[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime(), 5)
 	}
 }

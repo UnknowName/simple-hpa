@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+const MaxAvgTime = 60
+
 type autoScaleConfig struct {
 	MaxPod      int32    `yaml:"maxPod"`
 	MinPod      int32    `yaml:"minPod"`
@@ -86,8 +88,14 @@ func (c *Config) getEnvConfig() {
 		c.AutoScale.SliceSecond = sliceTime
 	}
 	avgTime, err := strconv.Atoi(os.Getenv("AVG_TIME"))
-	if err == nil && avgTime > 0 {
+	if err == nil && avgTime > 0 && avgTime <= MaxAvgTime {
 		c.AvgTime = avgTime
+	} else if avgTime != 0 && avgTime > MaxAvgTime {
+		// if env AVG_TIME not set, default is 0
+		c.AvgTime = MaxAvgTime
+		log.Printf("WARN AVG_TIME env is %d great than %d, reset use %d", avgTime, MaxAvgTime, MaxAvgTime)
+	} else {
+		log.Printf("WARN AVG_TIME env is %d it's not valid, use config.yaml value %d", avgTime, c.AvgTime)
 	}
 	ingressType := os.Getenv("INGRESS_TYPE")
 	if ingressType != "" {
@@ -100,14 +108,17 @@ func NewConfig(filename string) *Config {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatalln("Open file error ", err)
+		return nil
 	}
 	defer file.Close()
 	bytes, err := ioutil.ReadFile(filename)
 	if err != nil {
 		log.Fatalln("Read yaml file error ", err)
+		return nil
 	}
 	if err := yaml.Unmarshal(bytes, config); err != nil {
 		log.Fatalln("Convert config file error ", err)
+		return nil
 	}
 	config.getEnvConfig()
 	config.valid()

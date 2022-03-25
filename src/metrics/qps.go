@@ -6,13 +6,14 @@ import (
 	"time"
 )
 
-func NewCalculate(upstreamAddr string, accessTime time.Time) *Calculate {
+func NewCalculate(upstreamAddr string, accessTime time.Time, avgTime int) *Calculate {
 	return &Calculate{
 		secondTick:     time.Tick(time.Second),
-		resetTick:      time.Tick(time.Second * avgCount),
+		resetTick:      time.Tick(time.Duration(avgTime) * time.Second),
 		currentCount:   1,
-		durationCounts: make([]map[int]time.Time, avgCount, avgCount),
+		durationCounts: make([]map[int]time.Time, avgTime, avgTime),
 		avg:            0,
+		avgTime:        avgTime,
 		mutex:          sync.Mutex{},
 		upstreams:      map[string]time.Time{upstreamAddr: accessTime},
 	}
@@ -23,7 +24,8 @@ type Calculate struct {
 	resetTick      <-chan time.Time
 	currentCount   int
 	durationCounts []map[int]time.Time
-	avg            float64
+	avg            float64  // 当前avgCnt秒内的平均值
+	avgTime        int      // 取多少秒内的平均值
 	mutex          sync.Mutex
 	upstreams      map[string]time.Time
 }
@@ -50,7 +52,7 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 				}
 			}
 		}
-		c.avg = float64(sum) / avgCount
+		c.avg = float64(sum) / float64(c.avgTime)
 	default:
 	}
 	c.currentCount += 1

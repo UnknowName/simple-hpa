@@ -3,8 +3,8 @@ listen:
   address: 0.0.0.0
 
 ingressType: nginx
-# QPS采样频率，即5秒内的平均QPS
-avgTime: 5
+# QPS采样频率，即每5秒取一次样
+avgTime: 10
 
 autoScale:
   # 限制最高Pod数

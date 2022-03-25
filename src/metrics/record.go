@@ -13,7 +13,7 @@ const (
 	wasteful
 )
 
-func NewScaleRecord(maxQps, safeQps float64) *ScaleRecord {
+func NewScaleRecord(maxQps, safeQps float64, avgCount int) *ScaleRecord {
 	return &ScaleRecord{
 		latestQps:   make([]map[time.Time]float64, avgCount, avgCount),
 		maxQps:      maxQps,

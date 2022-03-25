@@ -80,7 +80,7 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 			if record, exist := qpsRecord[item.ServiceName()]; exist {
 				record.Update(item.Upstream(), item.AccessTime())
 			} else {
-				qpsRecord[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime())
+				qpsRecord[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime(), 5)
 			}
 		case <-timeTick:
 			span.LogKV("CalculateQPS", "time tick")
@@ -98,7 +98,8 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 	return channel
 }
 
-func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64, scaleRecord map[string]*metrics.ScaleRecord) {
+func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64,
+	scaleRecord map[string]*metrics.ScaleRecord, avgCount int) {
 	select {
 	case data := <-qpsChan:
 		if data == nil {
@@ -107,7 +108,7 @@ func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64, scaleRecord
 		if v, exist := scaleRecord[data.Name]; exist {
 			v.RecordQps(data.AvgQps, metrics.QPSRecordExpire)
 		} else {
-			scaleRecord[data.Name] = metrics.NewScaleRecord(maxQps, safeQps)
+			scaleRecord[data.Name] = metrics.NewScaleRecord(maxQps, safeQps, avgCount)
 		}
 	}
 }

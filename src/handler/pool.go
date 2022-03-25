@@ -3,6 +3,7 @@ package handler
 import (
 	"golang.org/x/net/context"
 	"log"
+	"strings"
 	"time"
 
 	"simple-hpa/src/ingress"
@@ -16,6 +17,8 @@ type IngressType uint8
 type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
 
 const (
+	// 一个随机常数，用于时间防止时间间隔重叠
+	randTime                     = time.Millisecond * 211
 	defaultQueueSize             = 1024
 	defaultPoolSize              = 10
 	nginx            IngressType = iota
@@ -89,7 +92,9 @@ func (ph *PoolHandler) startRecord() {
 				if v, exist := ph.scaleRecord[service]; exist {
 					v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
 				} else {
-					ph.scaleRecord[service] = metrics.NewScaleRecord(ph.config.AutoScale.MaxQPS, ph.config.AutoScale.SafeQPS)
+					ph.scaleRecord[service] = metrics.NewScaleRecord(ph.config.AutoScale.MaxQPS,
+						ph.config.AutoScale.SafeQPS,
+						ph.config.AvgTime)
 				}
 			}
 		}
@@ -97,7 +102,22 @@ func (ph *PoolHandler) startRecord() {
 }
 
 func (ph *PoolHandler) startEcho(echoTime time.Duration) {
-	utils.DisplayQPS(&ph.qpsRecord, echoTime)
+	// utils.DisplayQPS(&ph.qpsRecord, echoTime)
+	for {
+		select {
+		case <-time.Tick(echoTime):
+			for svc, qps := range ph.qpsRecord {
+				if qps == nil {
+					continue
+				}
+				log.Printf("%s latest %d second avg qps=%.2f 2 second active pod=%d",
+					svc,
+					ph.config.AvgTime,
+					qps.AvgQps(),
+					qps.GetPodCount())
+			}
+		}
+	}
 }
 
 func (ph *PoolHandler) Execute(data []byte) {
@@ -121,12 +141,59 @@ func (ph *PoolHandler) startWorkers() {
 			}
 		}(i, worker)
 	}
-	echoIntervalTime := time.Second * time.Duration(60/ph.config.AvgTime)
+	echoIntervalTime := time.Second * time.Duration(ph.config.AvgTime)
 	go ph.startRecord()
 	log.Println("start record qps worker success")
 	go ph.startEcho(echoIntervalTime)
 	log.Println("start echo worker success")
-	go utils.AutoScaleByQPS(&ph.scaleRecord, ph.k8sClient, ph.config)
+	// go utils.AutoScaleByQPS(&ph.scaleRecord, ph.k8sClient, ph.config)
+	go ph.startAutoScale()
 	log.Println("start auto scale worker success")
 	ph.isStart = true
+}
+
+func (ph *PoolHandler) startAutoScale() {
+	checkTime := time.Second*time.Duration(ph.config.AutoScale.SliceSecond) + randTime
+	for {
+		select {
+		case <-time.Tick(checkTime):
+			for namespaceSvc, scaleRecord := range ph.scaleRecord {
+				log.Printf("%s is safe=%t is wasteful=%t", namespaceSvc, scaleRecord.IsSafe(), scaleRecord.IsWasteful())
+				if (!scaleRecord.IsSafe() || scaleRecord.IsWasteful()) && scaleRecord.Interval() {
+					// 说明过量或者过少，都要调整，但是这里记录下上次调整的时间节点，防止频繁的改动
+					newCount := scaleRecord.GetSafeCount()
+					if *newCount > ph.config.AutoScale.MaxPod {
+						*newCount = ph.config.AutoScale.MaxPod
+					} else if *newCount < ph.config.AutoScale.MinPod {
+						*newCount = ph.config.AutoScale.MinPod
+					}
+					go func() {
+						svcStrs := strings.Split(namespaceSvc, ".")
+						if len(svcStrs) != 2 {
+							log.Println("WARN service name error", namespaceSvc, "please use namespace.service format")
+							return
+						}
+						namespace, service := svcStrs[0], svcStrs[1]
+						currCnt, err := ph.k8sClient.GetServicePod(namespace, service)
+						if err != nil {
+							log.Println("WARN get kubernetes client error ", err)
+							return
+						}
+						if *currCnt == *newCount {
+							return
+						}
+						err = ph.k8sClient.ChangeServicePod(namespace, service, newCount)
+						if err != nil {
+							log.Printf("WARN %s scale failed %s", namespaceSvc, err)
+							return
+						} else {
+							log.Printf("%s scale from %d to %d", namespaceSvc, *currCnt, *newCount)
+							scaleRecord.ChangeCount(newCount)
+							scaleRecord.ChangeScaleState(true)
+						}
+					}()
+				}
+			}
+		}
+	}
 }

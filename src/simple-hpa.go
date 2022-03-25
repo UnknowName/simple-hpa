@@ -96,7 +96,7 @@ func main() {
 				accessChan := utils.ParseUDPData(buf[:n])
 				accessChan = utils.FilterService(accessChan, config.AutoScale.Services)
 				qpsChan := utils.CalculateQPS(accessChan, avgTimeTick, calcuRecord)
-				utils.RecordQps(qpsChan, config.AutoScale.MaxQPS, config.AutoScale.SafeQPS, scaleRecord)
+				utils.RecordQps(qpsChan, config.AutoScale.MaxQPS, config.AutoScale.SafeQPS, scaleRecord, config.AvgTime)
 			}()
 		*/
 		// 使用工作池处理，限制协程数量
