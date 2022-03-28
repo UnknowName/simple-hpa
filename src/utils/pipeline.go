@@ -99,14 +99,14 @@ func CalculateQPS(data <-chan ingress.Access, timeTick <-chan time.Time,
 }
 
 func RecordQps(qpsChan <-chan *serviceInfo, maxQps, safeQps float64,
-	scaleRecord map[string]*metrics.ScaleRecord, avgCount int) {
+	scaleRecord map[string]*metrics.ScaleRecord, avgCount int, intervalTime int) {
 	select {
 	case data := <-qpsChan:
 		if data == nil {
 			return
 		}
 		if v, exist := scaleRecord[data.Name]; exist {
-			v.RecordQps(data.AvgQps, metrics.QPSRecordExpire)
+			v.RecordQps(data.AvgQps, time.Duration(intervalTime) * time.Second)
 		} else {
 			scaleRecord[data.Name] = metrics.NewScaleRecord(maxQps, safeQps, avgCount)
 		}

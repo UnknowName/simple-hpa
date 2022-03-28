@@ -24,7 +24,7 @@ func DisplayQPS(calcuRecord *map[string]*metrics.Calculate, echoTime time.Durati
 }
 
 func AutoScaleByQPS(scaleRecord *map[string]*metrics.ScaleRecord, k8sClient *scale.K8SClient, config *Config) {
-	checkTime := time.Second*time.Duration(config.AutoScale.SliceSecond) + time.Millisecond*211
+	checkTime := time.Second*time.Duration(config.ScaleIntervalTime) + time.Millisecond*211
 	dict := *scaleRecord
 	for {
 		select {
@@ -60,7 +60,7 @@ func AutoScaleByQPS(scaleRecord *map[string]*metrics.ScaleRecord, k8sClient *sca
 						} else {
 							log.Printf("%s scale from %d to %d", svc, *currCnt, *newCount)
 							scRecord.ChangeCount(newCount)
-							scRecord.ChangeScaleState(true)
+							scRecord.ChangeScaleState(true, config.ScaleIntervalTime)
 						}
 					}()
 				}

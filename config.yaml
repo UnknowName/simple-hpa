@@ -3,8 +3,10 @@ listen:
   address: 0.0.0.0
 
 ingressType: nginx
-# QPS采样频率，即每5秒取一次样
-avgTime: 10
+# QPS采样频率，即每5秒取一次样，单位为秒
+avgTime: 5
+# 自动扩展的间隔时间，防止频繁升降，单位为秒
+scaleIntervalTime: 120
 
 autoScale:
   # 限制最高Pod数
@@ -14,8 +16,6 @@ autoScale:
   maxQPS: 10
   # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
   safeQPS: 6
-  # 静默时间，当超过max且过了sliceTime后才开始考虑autoScale
-  sliceSecond: 120
   # 需要HPA的服务
   services:
     - namespace.deployName

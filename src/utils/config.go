@@ -11,14 +11,20 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const MaxAvgTime = 60
+const (
+	maxAvgTime          = 60
+	defaultAvgTime      = 5
+	defaultIntervalTime = 120
+	defaultIngressType  = "nginx"
+	defaultMinPod       = 1
+)
 
 type autoScaleConfig struct {
 	MaxPod      int32    `yaml:"maxPod"`
 	MinPod      int32    `yaml:"minPod"`
 	MaxQPS      float64  `yaml:"maxQPS"`
 	SafeQPS     float64  `yaml:"safeQPS"`
-	SliceSecond int      `yaml:"sliceSecond"`
+	// SliceSecond int      `yaml:"sliceSecond"`
 	Services    []string `yaml:"services"`
 }
 
@@ -28,10 +34,11 @@ type listenConfig struct {
 }
 
 type Config struct {
-	AvgTime     int             `yaml:"avgTime"`
-	IngressType string          `yaml:"ingressType"`
-	Listen      listenConfig    `yaml:"listen"`
-	AutoScale   autoScaleConfig `yaml:"autoScale"`
+	AvgTime           int             `yaml:"avgTime"`
+	ScaleIntervalTime int             `yaml:"scaleIntervalTime"`
+	IngressType       string          `yaml:"ingressType"`
+	Listen            listenConfig    `yaml:"listen"`
+	AutoScale         autoScaleConfig `yaml:"autoScale"`
 }
 
 func (c *Config) String() string {
@@ -45,18 +52,25 @@ func (c *Config) valid() {
 	if c.AutoScale.MaxPod < c.AutoScale.MinPod {
 		panic("config error, autoScale maxPod < autoScale.minPod")
 	}
-	if c.AutoScale.MinPod < 1 {
-		log.Println("warning, minPod < 1, use 1")
-		c.AutoScale.MinPod = 1
+	if c.AutoScale.MinPod < defaultMinPod {
+		c.AutoScale.MinPod = defaultMinPod
+		log.Println("WARN, config minPod < 1, use ", defaultMinPod)
 	}
 	if c.AvgTime <= 0 {
-		panic("config error, the avgTime <= 0")
+		c.AvgTime = defaultAvgTime
+		log.Println("INFO config avgTime use default ", defaultAvgTime)
+	}
+	if c.ScaleIntervalTime <= 0 {
+		c.ScaleIntervalTime = defaultIntervalTime
+		log.Println("INFO, config scaleIntervalTime use default ", defaultIntervalTime)
 	}
 	if c.IngressType == "" {
-		panic("config error, the Config.IngressType not defined")
+		c.IngressType = defaultIngressType
+		log.Println("INFO config ingressType use default ", defaultIngressType)
 	}
 	if c.AutoScale.Services == nil {
 		c.AutoScale.Services = make([]string, 0)
+		log.Println("WARN config autoServices not  present,this mean nothing todo")
 	}
 }
 
@@ -83,17 +97,17 @@ func (c *Config) getEnvConfig() {
 	if err == nil {
 		c.AutoScale.MaxPod = int32(maxPod)
 	}
-	sliceTime, err := strconv.Atoi(os.Getenv("SLICE_TIME"))
+	sliceTime, err := strconv.Atoi(os.Getenv("SCALE_INTERVAL_TIME"))
 	if err == nil {
-		c.AutoScale.SliceSecond = sliceTime
+		c.ScaleIntervalTime = sliceTime
 	}
 	avgTime, err := strconv.Atoi(os.Getenv("AVG_TIME"))
-	if err == nil && avgTime > 0 && avgTime <= MaxAvgTime {
+	if err == nil && avgTime > 0 && avgTime <= maxAvgTime {
 		c.AvgTime = avgTime
-	} else if avgTime != 0 && avgTime > MaxAvgTime {
+	} else if avgTime != 0 && avgTime > maxAvgTime {
 		// if env AVG_TIME not set, default is 0
-		c.AvgTime = MaxAvgTime
-		log.Printf("WARN AVG_TIME env is %d great than %d, reset use %d", avgTime, MaxAvgTime, MaxAvgTime)
+		c.AvgTime = maxAvgTime
+		log.Printf("WARN AVG_TIME env is %d great than %d, reset use %d", avgTime, maxAvgTime, maxAvgTime)
 	} else {
 		log.Printf("WARN AVG_TIME env is %d it's not valid, use config.yaml value %d", avgTime, c.AvgTime)
 	}

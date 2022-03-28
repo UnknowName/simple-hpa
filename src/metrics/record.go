@@ -62,8 +62,8 @@ func (r *ScaleRecord) IsSafe() bool {
 	return r.isState(state)
 }
 
-func (r *ScaleRecord) GetSafeCount() (count *int32) {
-	count = new(int32)
+func (r *ScaleRecord) GetSafeCount() *int32 {
+	count := new(int32)
 	sum := float64(0)
 	length := float64(0)
 	for _, qpsDict := range r.latestQps {
@@ -100,8 +100,8 @@ func (r *ScaleRecord) Interval() bool {
 	return true
 }
 
-func (r *ScaleRecord) ChangeScaleState(state bool) {
-	r.isScaled[state] = time.Now().Add(scaleExpire)
+func (r *ScaleRecord) ChangeScaleState(state bool, scaleIntervalTime int) {
+	r.isScaled[state] = time.Now().Add(time.Duration(scaleIntervalTime) * time.Second)
 }
 
 func (r *ScaleRecord) ChangeCount(count *int32) {

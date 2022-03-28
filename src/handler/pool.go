@@ -90,7 +90,8 @@ func (ph *PoolHandler) startRecord() {
 		case <-avgTimeTick:
 			for service, calculate := range *dict {
 				if v, exist := ph.scaleRecord[service]; exist {
-					v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
+					v.RecordQps(calculate.AvgQps(), time.Duration(ph.config.ScaleIntervalTime) * time.Second)
+					// v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
 				} else {
 					ph.scaleRecord[service] = metrics.NewScaleRecord(ph.config.AutoScale.MaxQPS,
 						ph.config.AutoScale.SafeQPS,
@@ -110,10 +111,11 @@ func (ph *PoolHandler) startEcho(echoTime time.Duration) {
 				if qps == nil {
 					continue
 				}
-				log.Printf("%s latest %d second avg qps=%.2f 2 second active pod=%d",
+				log.Printf("%s latest %d second avg qps=%.2f, %d second active backend pod=%d",
 					svc,
 					ph.config.AvgTime,
 					qps.AvgQps(),
+					ph.config.AvgTime,
 					qps.GetPodCount())
 			}
 		}
@@ -153,7 +155,7 @@ func (ph *PoolHandler) startWorkers() {
 }
 
 func (ph *PoolHandler) startAutoScale() {
-	checkTime := time.Second*time.Duration(ph.config.AutoScale.SliceSecond) + randTime
+	checkTime := time.Second*time.Duration(ph.config.ScaleIntervalTime) + randTime
 	for {
 		select {
 		case <-time.Tick(checkTime):
@@ -189,7 +191,7 @@ func (ph *PoolHandler) startAutoScale() {
 						} else {
 							log.Printf("%s scale from %d to %d", namespaceSvc, *currCnt, *newCount)
 							scaleRecord.ChangeCount(newCount)
-							scaleRecord.ChangeScaleState(true)
+							scaleRecord.ChangeScaleState(true, ph.config.ScaleIntervalTime)
 						}
 					}()
 				}

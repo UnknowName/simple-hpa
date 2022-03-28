@@ -25,7 +25,7 @@ type Calculate struct {
 	currentCount   int
 	durationCounts []map[int]time.Time
 	avg            float64  // 当前avgCnt秒内的平均值
-	avgTime        int      // 取多少秒内的平均值
+	avgTime        int      // 一分钟内取样多少次
 	mutex          sync.Mutex
 	upstreams      map[string]time.Time
 }
@@ -40,7 +40,8 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 	c.upstreams[upstream] = accessTime
 	select {
 	case <-c.secondTick:
-		data := map[int]time.Time{c.currentCount: time.Now().Add(scaleExpire)}
+		// 增加一个时间是防止前面有值，后面为空时，值不对的情况，这时就不要它了，显示为0
+		data := map[int]time.Time{c.currentCount: time.Now().Add(time.Duration(c.avgTime) * time.Second)}
 		c.durationCounts = append(c.durationCounts[1:], data)
 		c.currentCount = 0
 	case <-c.resetTick:
@@ -77,7 +78,7 @@ func (c *Calculate) clean() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	for upstream, accessTime := range c.upstreams {
-		if accessTime.Add(time.Second * expireSecond).Before(time.Now()) {
+		if accessTime.Add(time.Second * time.Duration(c.avgTime)).Before(time.Now()) {
 			delete(c.upstreams, upstream)
 		}
 	}
