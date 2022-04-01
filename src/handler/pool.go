@@ -111,7 +111,7 @@ func (ph *PoolHandler) startEcho(echoTime time.Duration) {
 				if qps == nil {
 					continue
 				}
-				log.Printf("%s latest %d second avg qps=%.2f, %d second active backend pod=%d",
+				log.Printf("%s latest %d second signle pod avg qps=%.2f, %d second active backend pod=%d",
 					svc,
 					ph.config.AvgTime,
 					qps.AvgQps(),

@@ -56,3 +56,4 @@ The follow field must present
 - `service`
 - `time_msec`
 - `upstream_addr`
+- `status`

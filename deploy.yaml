@@ -35,7 +35,7 @@ spec:
           - name: SAFE_QPS
             value: "5"
           - name: SCALE_INTERVAL_TIME
-            value: 120
+            value: "120"
           - name: SCALE_SERVICES
             # Namespace.ServiceName
             value: "demo-dev.daohao,default.test"
@@ -80,11 +80,12 @@ rules:
     verbs:
       - 'get'
       - 'update'
-  - nonResourceURLs:
-      - '*'
-    verbs:
-      - 'get'
-      - 'update'
+
+  # - nonResourceURLs:
+  #    - '*'
+  #  verbs:
+  #    - 'get'
+  #    - 'update'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
