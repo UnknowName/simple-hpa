@@ -14,4 +14,4 @@ COPY --from=builder /simple-hpa/config.yaml /config.yaml
 
 EXPOSE 514/udp
 
-ENTRYPOINT /simple-hpa
+CMD ["/simple-hpa", "/config.yaml"]
