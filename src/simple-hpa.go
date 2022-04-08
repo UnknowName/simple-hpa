@@ -6,7 +6,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"path"
 	"simple-hpa/src/handler"
 	"simple-hpa/src/scale"
@@ -71,23 +70,14 @@ func main() {
 	k8sClient = scale.NewK8SClient()
 	poolHandler := handler.NewPoolHandler(config, k8sClient)
 	forward := utils.NewForward(config.Forwards)
-	quitChan := make(chan os.Signal, 1)
-	defer close(quitChan)
-	signal.Notify(quitChan)
 	for {
-		select {
-		case <-quitChan:
-			log.Println("receive quit signal,exit")
-			return
-		default:
-			buf := make([]byte, bufSize)
-			n, err := conn.Read(buf)
-			if err != nil || n == 0 {
-				log.Println(err)
-				continue
-			}
-			go forward.Send(buf)
-			poolHandler.Execute(buf[:n])
+		buf := make([]byte, bufSize)
+		n, err := conn.Read(buf)
+		if err != nil || n == 0 {
+			log.Println(err)
+			continue
 		}
+		forward.Send(buf)
+		poolHandler.Execute(buf[:n])
 	}
 }
