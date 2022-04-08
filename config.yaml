@@ -19,8 +19,11 @@ autoScale:
   # 需要HPA的服务
   services:
     - namespace.deployName
-    - default.sample-app
     - demo-dev.daohao
-    - demo.client
 
 # Deployment指定的environment优先级会高于config.yaml
+
+# 将Ingres AccessLog转发，用于如分析日志场景
+forwards:
+  - type: rsyslog
+    address: 128.0.255.10:514

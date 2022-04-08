@@ -39,6 +39,9 @@ spec:
           - name: SCALE_SERVICES
             # Namespace.ServiceName
             value: "demo-dev.daohao,default.test"
+          - name: FORWARDS
+            # "TypeName:IP:Port"
+            value: "rsyslog=128.0.255.10:514,es=128.0.255.10:9200"
           ports:
             - containerPort: 514
               name: rsyslog

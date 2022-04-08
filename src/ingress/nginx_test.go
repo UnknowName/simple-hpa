@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-func TestEvent_Echo(t *testing.T) {
-	var time_msec float64
-	time_msec = 1627007390.044
-	time_d := time.Duration(time_msec)
-	log.Println(time.Unix(time_d.Milliseconds(), 0))
+func TestEventEcho(t *testing.T) {
+	var timeMsec float64
+	timeMsec = 1627007390.044
+	timeDur := time.Duration(timeMsec)
+	log.Println(time.Unix(timeDur.Milliseconds(), 0))
 }

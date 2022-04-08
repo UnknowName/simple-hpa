@@ -20,17 +20,21 @@ const (
 )
 
 type autoScaleConfig struct {
-	MaxPod      int32    `yaml:"maxPod"`
-	MinPod      int32    `yaml:"minPod"`
-	MaxQPS      float64  `yaml:"maxQPS"`
-	SafeQPS     float64  `yaml:"safeQPS"`
-	// SliceSecond int      `yaml:"sliceSecond"`
-	Services    []string `yaml:"services"`
+	MaxPod   int32    `yaml:"maxPod"`
+	MinPod   int32    `yaml:"minPod"`
+	MaxQPS   float64  `yaml:"maxQPS"`
+	SafeQPS  float64  `yaml:"safeQPS"`
+	Services []string `yaml:"services"`
 }
 
 type listenConfig struct {
 	ListenAddr string `yaml:"address"`
 	Port       int    `yaml:"port"`
+}
+
+type ForwardConfig struct {
+	TypeName string `yaml:"type"`
+	Address  string `yaml:"address"`
 }
 
 type Config struct {
@@ -39,6 +43,7 @@ type Config struct {
 	IngressType       string          `yaml:"ingressType"`
 	Listen            listenConfig    `yaml:"listen"`
 	AutoScale         autoScaleConfig `yaml:"autoScale"`
+	Forwards          []ForwardConfig `yaml:"forwards"`
 }
 
 func (c *Config) String() string {
@@ -72,9 +77,10 @@ func (c *Config) valid() {
 		c.AutoScale.Services = make([]string, 0)
 		log.Println("WARN config autoServices not  present,this mean nothing todo")
 	}
+	if c.Forwards == nil {
+		c.Forwards = make([]ForwardConfig, 0)
+	}
 }
-
-// env优先级大于config.yml，这样在容器环境中，只需要修改env而不要重新打包镜像
 
 func (c *Config) getEnvConfig() {
 	service := os.Getenv("SCALE_SERVICES")
@@ -114,6 +120,18 @@ func (c *Config) getEnvConfig() {
 	ingressType := os.Getenv("INGRESS_TYPE")
 	if ingressType != "" {
 		c.IngressType = ingressType
+	}
+	_forwards := os.Getenv("FORWARDS")
+	if len(_forwards) <= 0 {
+		return
+	}
+	forwardConfigs := make([]ForwardConfig, 0)
+	for _, _forward := range strings.Split(_forwards, ",") {
+		typeName, addr := strings.Split(_forward, "=")[0], strings.Split(_forward, "=")[1]
+		forwardConfigs = append(forwardConfigs, ForwardConfig{typeName, addr})
+	}
+	if len(forwardConfigs) > 0 {
+		c.Forwards = forwardConfigs
 	}
 }
 

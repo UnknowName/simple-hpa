@@ -13,4 +13,5 @@ func TestNewConfig(t *testing.T) {
 		log.Println(svc)
 	}
 	log.Printf(config.IngressType)
+	log.Println(config.Forwards)
 }

@@ -17,7 +17,7 @@ type IngressType uint8
 type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
 
 const (
-	// 一个随机常数，用于时间防止时间间隔重叠
+	// 一个随机常数，用于防止时间间隔重叠
 	randTime                     = time.Millisecond * 211
 	defaultQueueSize             = 1024
 	defaultPoolSize              = 10
@@ -91,7 +91,6 @@ func (ph *PoolHandler) startRecord() {
 			for service, calculate := range *dict {
 				if v, exist := ph.scaleRecord[service]; exist {
 					v.RecordQps(calculate.AvgQps(), time.Duration(ph.config.ScaleIntervalTime) * time.Second)
-					// v.RecordQps(calculate.AvgQps(), metrics.QPSRecordExpire)
 				} else {
 					ph.scaleRecord[service] = metrics.NewScaleRecord(ph.config.AutoScale.MaxQPS,
 						ph.config.AutoScale.SafeQPS,
@@ -103,7 +102,6 @@ func (ph *PoolHandler) startRecord() {
 }
 
 func (ph *PoolHandler) startEcho(echoTime time.Duration) {
-	// utils.DisplayQPS(&ph.qpsRecord, echoTime)
 	for {
 		select {
 		case <-time.Tick(echoTime):
@@ -148,7 +146,6 @@ func (ph *PoolHandler) startWorkers() {
 	log.Println("start record qps worker success")
 	go ph.startEcho(echoIntervalTime)
 	log.Println("start echo worker success")
-	// go utils.AutoScaleByQPS(&ph.scaleRecord, ph.k8sClient, ph.config)
 	go ph.startAutoScale()
 	log.Println("start auto scale worker success")
 	ph.isStart = true
@@ -178,7 +175,7 @@ func (ph *PoolHandler) startAutoScale() {
 						namespace, service := svcStrs[0], svcStrs[1]
 						currCnt, err := ph.k8sClient.GetServicePod(namespace, service)
 						if err != nil {
-							log.Println("WARN get kubernetes client error ", err)
+							log.Printf("WARN get %s.%s replication count err %s", namespace, service, err )
 							return
 						}
 						if *currCnt == *newCount {
