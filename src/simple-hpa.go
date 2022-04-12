@@ -3,13 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"path"
 	"simple-hpa/src/handler"
 	"simple-hpa/src/scale"
 	"simple-hpa/src/utils"
+	"syscall"
 )
 
 const (
@@ -70,14 +73,28 @@ func main() {
 	k8sClient = scale.NewK8SClient()
 	poolHandler := handler.NewPoolHandler(config, k8sClient)
 	forward := utils.NewForward(config.Forwards)
+	quitChan := make(chan os.Signal)
+	signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL)
+	go quit(quitChan, conn)
 	for {
 		buf := make([]byte, bufSize)
 		n, err := conn.Read(buf)
-		if err != nil || n == 0 {
-			log.Println(err)
+		if err != nil && err == io.EOF {
 			continue
+		}
+		if err != nil {
+			log.Println("receive quit signal,quit...")
+			return
 		}
 		forward.Send(buf)
 		poolHandler.Execute(buf[:n])
+	}
+}
+
+func quit(c chan os.Signal, conn *net.UDPConn)  {
+	select {
+	case <- c:
+		conn.Close()
+		return
 	}
 }
