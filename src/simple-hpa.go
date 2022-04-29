@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -21,6 +22,8 @@ const (
 )
 
 var (
+	buf       [bufSize]byte
+	bufByte   bytes.Buffer
 	config    *utils.Config
 	server    *Server
 	k8sClient *scale.K8SClient
@@ -77,17 +80,22 @@ func main() {
 	signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL)
 	go quit(quitChan, conn)
 	for {
-		buf := make([]byte, bufSize)
-		n, err := conn.Read(buf)
+		n, err := conn.Read(buf[:])
 		if err != nil && err == io.EOF {
 			continue
 		}
 		if err != nil {
-			log.Println("receive quit signal,quit...")
+			log.Println(err)
 			return
 		}
-		forward.Send(buf)
-		poolHandler.Execute(buf[:n])
+		if n == bufSize {
+			bufByte.Write(buf[:])
+			continue
+		}
+		bufByte.Write(buf[:n])
+		poolHandler.Execute(bufByte.Bytes())
+		forward.Send(bufByte.Bytes())
+		bufByte.Reset()
 	}
 }
 
