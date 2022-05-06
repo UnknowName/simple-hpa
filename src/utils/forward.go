@@ -9,12 +9,13 @@ import (
 type ForwardType uint8
 
 const (
-	udp                 = "udp"
-	tcp                 = "tcp"
+	udp    = "udp"
+	// tcp    = "tcp"
+	tryMax = 5
 )
 
 type Forwarder interface {
-	Send(data []byte)
+	Send(data []byte, cnt int)
 }
 
 func NewForward(configs []ForwardConfig) *Forward {
@@ -52,7 +53,7 @@ type Forward struct {
 
 func (f *Forward) Send(data []byte) {
 	for _, forward := range f.forwards {
-		go forward.Send(data)
+		go forward.Send(data, 1)
 	}
 }
 
@@ -64,10 +65,12 @@ func (rf *RsyslogForward) String() string {
 	return fmt.Sprintf("RsyslogForward{}")
 }
 
-func (rf *RsyslogForward) Send(data []byte) {
+func (rf *RsyslogForward) Send(data []byte, cnt int) {
 	n, err := rf.conn.Write(data)
 	if len(data) != n || err != nil {
-		fmt.Println(string(data), "send failed, try again")
-		rf.Send(data)
+		log.Printf("%s send failed %d, try again", string(data), cnt)
+		if cnt < tryMax {
+			rf.Send(data, cnt+1)
+		}
 	}
 }
