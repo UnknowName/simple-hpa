@@ -9,6 +9,8 @@ RUN cd /simple-hpa \
 
 FROM debian
 
+ENV TZ=Asia/Shanghai
+
 COPY --from=builder /simple-hpa/simple-hpa /simple-hpa
 COPY --from=builder /simple-hpa/config.yaml /config.yaml
 

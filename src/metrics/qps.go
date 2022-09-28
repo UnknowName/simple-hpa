@@ -38,6 +38,7 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.upstreams[upstream] = accessTime
+	c.currentCount += 1
 	select {
 	case <-c.secondTick:
 		// 增加一个时间是防止前面有值，后面为空时，值不对的情况，这时就不要它了，显示为0
@@ -53,10 +54,10 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 				}
 			}
 		}
+		sum += c.currentCount / 2
 		c.avg = float64(sum) / float64(c.avgTime)
 	default:
 	}
-	c.currentCount += 1
 	go c.clean()
 }
 
