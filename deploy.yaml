@@ -1,56 +1,46 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: v1
+kind: Pod
 metadata:
   labels:
     app: simple-hpa
   name: simple-hpa
 spec:
-  # Don't change
-  replicas: 1
-  selector:
-    matchLabels:
-      app: simple-hpa
-  template:
-    metadata:
-      labels:
-        app: simple-hpa
-    spec:
-      containers:
-        - image: unknowname/simple-hpa
-          imagePullPolicy: Always
-          name: simple-hpa
-          env:
-          - name: TZ
-            value: "Asia/Shanghai"
-          - name: AVG_TIME
-            value: "5"
-          - name: INGRESS_TYPE
-            value: "nginx"
-          - name: MIN_POD
-            value: "1"
-          - name: MAX_POD
-            value: "2"
-          - name: MAX_QPS
-            value: "10"
-          - name: SAFE_QPS
-            value: "5"
-          - name: SCALE_INTERVAL_TIME
-            value: "120"
-          - name: SCALE_SERVICES
-            # Namespace.ServiceName
-            value: "demo-dev.daohao,default.test"
-          - name: FORWARDS
-            # "TypeName:IP:Port"
-            value: "rsyslog=128.0.255.10:514,es=128.0.255.10:9200"
-          ports:
-            - containerPort: 514
-              name: rsyslog
-              protocol: UDP
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      securityContext: {}
+  containers:
+    - image: unknowname/simple-hpa
+      imagePullPolicy: Always
+      name: simple-hpa
+      env:
+        - name: TZ
+          value: "Asia/Shanghai"
+        - name: AVG_TIME
+          value: "5"
+        - name: INGRESS_TYPE
+          value: "nginx"
+        - name: MIN_POD
+          value: "1"
+        - name: MAX_POD
+          value: "2"
+        - name: MAX_QPS
+          value: "10"
+        - name: SAFE_QPS
+          value: "5"
+        - name: SCALE_INTERVAL_TIME
+          value: "120"
+        - name: SCALE_SERVICES
+          # Namespace.ServiceName
+          value: "demo-dev.daohao,default.test"
+        - name: FORWARDS
+          # "TypeName:IP:Port"
+          value: "rsyslog=128.0.255.10:514,es=128.0.255.10:9200"
+      ports:
+        - containerPort: 514
+          name: rsyslog
+          protocol: UDP
+      terminationMessagePath: /dev/termination-log
+      terminationMessagePolicy: File
+  dnsPolicy: ClusterFirst
+  restartPolicy: Always
+  securityContext: {}
 ---
 apiVersion: v1
 kind: Service
@@ -83,12 +73,6 @@ rules:
     verbs:
       - 'get'
       - 'update'
-
-  # - nonResourceURLs:
-  #    - '*'
-  #  verbs:
-  #    - 'get'
-  #    - 'update'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
