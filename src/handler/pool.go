@@ -26,7 +26,6 @@ const (
 )
 
 type handler interface {
-	parseData([]byte, []string, FilterFunc, context.Context) <-chan ingress.Access
 	parseDataWithFilter([]byte, []string) ingress.Access
 }
 
