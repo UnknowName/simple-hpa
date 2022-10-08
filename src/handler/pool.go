@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"golang.org/x/net/context"
 	"log"
 	"strings"
 	"time"
@@ -14,8 +13,6 @@ import (
 
 type IngressType uint8
 
-type FilterFunc func(itemChan ingress.Access, services []string, parent context.Context) ingress.Access
-
 const (
 	// 一个随机常数，用于防止时间间隔重叠
 	randTime                     = time.Millisecond * 211
@@ -26,13 +23,18 @@ const (
 )
 
 type handler interface {
-	parseDataWithFilter([]byte, []string) ingress.Access
+	ParseData(data []byte)  ingress.Access
+	SetAutoService(services []string)
 }
 
 func newDataHandler(ingressType IngressType) handler {
 	switch ingressType {
 	case nginx:
-		return &nginxDataHandler{ingressType: ingressType, logKey: []byte("nginx: ")}
+		return &nginxDataHandler{
+			ingressType: ingressType,
+			logKey: []byte("nginx: "),
+			autoService: make(map[string]struct{}),
+		}
 	default:
 		panic("un support ingress type")
 	}
@@ -129,10 +131,11 @@ func (ph *PoolHandler) startWorkers() {
 		return
 	}
 	for i, worker := range ph.workers {
+		worker.SetAutoService(ph.config.AutoScale.Services)
 		go func(i int, worker handler) {
 			for {
 				byteData := <-ph.queue[i]
-				accessItem := worker.parseDataWithFilter(byteData, ph.config.AutoScale.Services)
+				accessItem := worker.ParseData(byteData)
 				if accessItem == nil {
 					continue
 				}

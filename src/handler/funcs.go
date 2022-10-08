@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"sync"
@@ -10,7 +11,11 @@ import (
 	"simple-hpa/src/metrics"
 )
 
-const jsonTry = 3
+const (
+	jsonTry      = 2
+	bracesSymbol = '}'
+	endSymbol    = '"'
+)
 
 var mutex sync.Mutex
 
@@ -25,13 +30,53 @@ func calculateQPS(item ingress.Access, qpsRecord *map[string]*metrics.Calculate)
 	}
 }
 
-func Unmarshal(data []byte, o ingress.Access) error {
+func Unmarshal(data []byte, ing ingress.Access) error {
+	// 先尝试正常JSON化，成功就立即返回
+	err := json.Unmarshal(data, ing)
+	if err == nil {
+		return nil
+	}
+	// step1: 检查数据
+	n := bytes.Count(data, []byte{bracesSymbol})
+	i := len(data)
+	if n > 1 {
+		// JSON字符串中多出一个}
+		for n >= 1 {
+			i--
+			if data[i] == bracesSymbol {
+				n--
+			}
+		}
+		i++
+	} else if n == 1 {
+		// step2: 处理像{}xxx 合法外多出的字符串或正常结束的
+		for data[i-1] != bracesSymbol {
+			i--
+		}
+	} else {
+		// JSON字符串中缺'}'的,因为最后会添加}，因此这里只检查最后一个是不是'"'
+		if data[i-1] != endSymbol {
+			data = append(data, endSymbol)
+			i += 2
+		} else {
+			i++
+		}
+	}
+	data = append(data, bracesSymbol)
+	err = json.Unmarshal(data[:i], ing)
+	if err != nil {
+		return errors.New(string(data))
+	}
+	return nil
+}
+
+func ConcurUnmarshal(data []byte, ing ingress.Access) error {
 	wg := sync.WaitGroup{}
 	wg.Add(jsonTry)
 	var cnt uint32
 	go func() {
 		defer wg.Done()
-		err := json.Unmarshal(data, o)
+		err := json.Unmarshal(data, ing)
 		if err != nil {
 			atomic.AddUint32(&cnt, 1)
 		}
@@ -39,15 +84,33 @@ func Unmarshal(data []byte, o ingress.Access) error {
 
 	go func() {
 		defer wg.Done()
-		err := json.Unmarshal(append(data, '}'), o)
-		if err != nil {
-			atomic.AddUint32(&cnt, 1)
+		n := bytes.Count(data, []byte{bracesSymbol})
+		i := len(data)
+		if n > 1 {
+			// JSON字符串中多出一个}
+			for n >= 1 {
+				i--
+				if data[i] == bracesSymbol {
+					n--
+				}
+			}
+			i++
+		} else if n == 1 {
+			// step2: 处理像{}xxx 合法外多出的字符串或正常结束的
+			for data[i-1] != bracesSymbol {
+				i--
+			}
+		} else {
+			// JSON字符串中缺'}'的,因为最后会添加}，因此这里只检查最后一个是不是'"'
+			if data[i-1] != endSymbol {
+				data = append(data, endSymbol)
+				i += 2
+			} else {
+				i++
+			}
 		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		err := json.Unmarshal(data[:len(data)-1], o)
+		data = append(data, bracesSymbol)
+		err := json.Unmarshal(data[:i], ing)
 		if err != nil {
 			atomic.AddUint32(&cnt, 1)
 		}

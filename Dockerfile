@@ -5,7 +5,8 @@ ENV GOPROXY="https://goproxy.io,direct"
 ADD ./  /simple-hpa
 
 RUN cd /simple-hpa \
-    && go build src/simple-hpa.go
+    && go build src/simple-hpa.go \
+    && chmod +x simple-hpa
 
 FROM debian
 

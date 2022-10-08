@@ -10,7 +10,7 @@ scaleIntervalTime: 120
 
 autoScale:
   # 限制最高Pod数
-  maxPod: 20
+  maxPod: 2
   minPod: 1
   # QPS达到该值开始自动伸缩
   maxQPS: 10
@@ -24,6 +24,6 @@ autoScale:
 # Deployment指定的environment优先级会高于config.yaml
 
 # 将Ingres AccessLog转发，用于如分析日志场景
-forwards:
-  - type: rsyslog
-    address: 128.0.255.10:514
+#forwards:
+#  - type: rsyslog
+#    address: 128.0.255.10:514
