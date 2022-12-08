@@ -1,0 +1,21 @@
+simple-hpa:
+  image: unknowname/simple-hpa
+  container_name: simple-hpa
+  # default 514/udp
+  net: host
+  restart: always
+  environment:
+    TZ: "Asia/Shanghai"
+    AVG_TIME: "5"
+    INGRESS_TYPE: "nginx"
+    MIN_POD: "6"
+    MAX_POD: "10"
+    MAX_QPS: "25"
+    SAFE_QPS: "20"
+    SCALE_INTERVAL_TIME: "120"
+    # Namespace.ServiceName
+    SCALE_SERVICES: "NameSpace.ServiceName"
+  mem_limit: "200M"
+  volumes:
+    - ./kube:/root/.kube
+    # - ./config.yaml:/config.yaml
