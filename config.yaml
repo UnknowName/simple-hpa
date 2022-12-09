@@ -1,25 +1,46 @@
+ingressType: nginx
+
 listen:
   port: 514
   address: 0.0.0.0
 
-ingressType: nginx
-# QPS采样频率，即每5秒取一次样，单位为秒
-avgTime: 5
-# 自动扩展的间隔时间，防止频繁升降，单位为秒
-scaleIntervalTime: 120
-
-autoScale:
+default:
+  # QPS采样频率，即每5秒取一次样，单位为秒
+  avgTime: 5
+  # 自动扩展的间隔时间，防止频繁升降，单位为秒
+  scaleIntervalTime: 120
   # 限制最高Pod数
   maxPod: 2
   minPod: 1
   # QPS达到该值开始自动伸缩
-  maxQPS: 10
+  maxQps: 10
   # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
-  safeQPS: 6
-  # 需要HPA的服务
-  services:
-    - namespace.deployName
-    - demo-dev.daohao
+  safeQps: 6
+  # 影响因子。用于测试验证，怕流量太大处理不过来，只接入部分流量时，计算会 * factor
+  factor: 1
+
+# use env ServiceName.Namespace:minPod:maxPod:safeQps:maxQps:factor
+scaleServices:
+  # 需要自动伸缩的服务
+  - serviceName: ServiceName1
+    namespace: namespace1
+    # 未指定项将使用默认值
+    maxPod: 10
+    minPod: 6
+    maxQps: 25
+    safeQps: 20
+    # factor: 1
+
+  - serviceName: ServiceName2
+    namespace: namespace2
+    maxPod: 10
+    minPod: 6
+    maxQps: 25
+    safeQps: 20
+
+  - serviceName: ServiceName3
+    namespace: namespace3
+    # other use default
 
 # Deployment指定的environment优先级会高于config.yaml
 
