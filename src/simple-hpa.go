@@ -10,10 +10,11 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"syscall"
+
 	"simple-hpa/src/handler"
 	"simple-hpa/src/scale"
 	"simple-hpa/src/utils"
-	"syscall"
 )
 
 const (
@@ -45,7 +46,7 @@ func init() {
 	cfg := path.Join(pwd, server.configPath)
 	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
-	if config.AutoScale.Services == nil || len(config.AutoScale.Services) == 0 {
+	if config.ScaleServices == nil || len(config.ScaleServices) == 0 {
 		log.Fatalln("WARNING, Auto scale dest service not defined")
 	}
 }
@@ -67,11 +68,10 @@ func main() {
 	}
 	defer conn.Close()
 	log.Printf("App listen on %s/%s", listenAddr, netType)
-	log.Printf("Auto scale services: %s, these service pod count min=%d max=%d",
-		config.AutoScale.Services,
-		config.AutoScale.MinPod,
-		config.AutoScale.MaxPod,
-	)
+	for _, svcConf := range config.ScaleServices {
+		log.Printf("service %s.%s, safeQps=%.2f, maxQps=%.2f, minPod=%d, maxPod=%d",
+			svcConf.ServiceName, svcConf.Namespace, svcConf.SafeQps, svcConf.MaxQps, svcConf.MinPod, svcConf.MaxPod)
+	}
 	log.Printf("forward origin message to %s", config.Forwards)
 	k8sClient = scale.NewK8SClient()
 	poolHandler := handler.NewPoolHandler(config, k8sClient)
@@ -99,9 +99,9 @@ func main() {
 	}
 }
 
-func quit(c chan os.Signal, conn *net.UDPConn)  {
+func quit(c chan os.Signal, conn *net.UDPConn) {
 	select {
-	case <- c:
+	case <-c:
 		conn.Close()
 		return
 	}
