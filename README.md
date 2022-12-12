@@ -2,7 +2,7 @@
 
 ## Running Demo
 
-![Demo](./manifests/demo.jpg)
+![Demo](./manifests/demo.png)
 
 Support `NGINX Ingress`
 
