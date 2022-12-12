@@ -7,8 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"simple-hpa/src/ingress"
-	"simple-hpa/src/metrics"
+	"auto-scale/src/ingress"
+	"auto-scale/src/metrics"
 )
 
 const (

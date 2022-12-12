@@ -12,9 +12,9 @@ import (
 	"path"
 	"syscall"
 
-	"simple-hpa/src/handler"
-	"simple-hpa/src/scale"
-	"simple-hpa/src/utils"
+	"auto-scale/src/handler"
+	"auto-scale/src/scale"
+	"auto-scale/src/utils"
 )
 
 const (

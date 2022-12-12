@@ -1,4 +1,4 @@
-module simple-hpa
+module auto-scale
 
 go 1.16
 

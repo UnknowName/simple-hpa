@@ -1,4 +1,4 @@
-# Simple HPA Base Ingress Access Log
+# Auto scale Base Ingress Access Log
 
 ## Running Demo
 

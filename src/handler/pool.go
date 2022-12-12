@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"simple-hpa/src/ingress"
-	"simple-hpa/src/metrics"
-	"simple-hpa/src/scale"
-	"simple-hpa/src/utils"
+	"auto-scale/src/ingress"
+	"auto-scale/src/metrics"
+	"auto-scale/src/scale"
+	"auto-scale/src/utils"
 )
 
 type IngressType uint8

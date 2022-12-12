@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"log"
 
-	"simple-hpa/src/ingress"
+	"auto-scale/src/ingress"
 )
 
 
