@@ -68,9 +68,9 @@ func main() {
 	}
 	defer conn.Close()
 	log.Printf("App listen on %s/%s", listenAddr, netType)
-	for _, svcConf := range config.ScaleServices {
-		log.Printf("service %s.%s, safeQps=%.2f, maxQps=%.2f, minPod=%d, maxPod=%d",
-			svcConf.ServiceName, svcConf.Namespace, svcConf.SafeQps, svcConf.MaxQps, svcConf.MinPod, svcConf.MaxPod)
+	for _, conf := range config.ScaleServices {
+		log.Printf("service %s.%s, safeQps=%.2f, maxQps=%.2f, minPod=%d, maxPod=%d factor=%.1f",
+			conf.ServiceName, conf.Namespace, conf.SafeQps, conf.MaxQps, conf.MinPod, conf.MaxPod, conf.Factor)
 	}
 	log.Printf("forward origin message to %s", config.Forwards)
 	k8sClient = scale.NewK8SClient()

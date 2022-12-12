@@ -91,16 +91,15 @@ func (ph *PoolHandler) startRecord() {
 		select {
 		case <-avgTimeTick:
 			for service, calculate := range *dict {
+				_conf := ph.config.GetServiceConfig(service)
+				if _conf == nil {
+					log.Fatalln(service, "not config in config.yaml")
+				}
 				if v, exist := ph.scaleRecord[service]; exist {
-					v.RecordQps(calculate.AvgQps(), time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
+					// TODO 应该在AvgQPS值输出时就是正确的，不用相乘
+					v.RecordQps(calculate.AvgQps() * _conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
 				} else {
-					config := ph.config.GetServiceConfig(service)
-					if config != nil {
-						ph.scaleRecord[service] = metrics.NewScaleRecord(
-							config.MaxQps,
-							config.SafeQps,
-							ph.config.Default.AvgTime)
-					}
+					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps, _conf.Factor, ph.config.Default.AvgTime)
 				}
 			}
 		}
@@ -112,13 +111,15 @@ func (ph *PoolHandler) startEcho(echoTime time.Duration) {
 		select {
 		case <-time.Tick(echoTime):
 			for svc, qps := range ph.qpsRecord {
-				if qps == nil {
+				_conf := ph.config.GetServiceConfig(svc)
+				if qps == nil || _conf == nil {
 					continue
 				}
-				log.Printf("%s latest %d second signle pod avg qps=%.2f, %d second active backend pod=%d",
+				log.Printf("%s latest %d second, qps(*%.f)=%.2f of per pod,%d second active backend pod=%d",
 					svc,
 					ph.config.Default.AvgTime,
-					qps.AvgQps(),
+					_conf.Factor,
+					qps.AvgQps() * _conf.Factor,
 					ph.config.Default.AvgTime,
 					qps.GetPodCount())
 			}

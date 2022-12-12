@@ -13,12 +13,13 @@ const (
 	wasteful
 )
 
-func NewScaleRecord(maxQps, safeQps float32, avgCount int) *ScaleRecord {
+func NewScaleRecord(maxQps, safeQps, factor float32, avgCount int) *ScaleRecord {
 	return &ScaleRecord{
 		latestQps:   make([]map[time.Time]float32, avgCount, avgCount),
 		maxQps:      maxQps,
 		safeQps:     safeQps,
 		isScaled:    make(map[bool]time.Time),
+		factor:      factor,
 		latestCount: nil,
 	}
 }
@@ -28,6 +29,7 @@ type ScaleRecord struct {
 	maxQps      float32
 	safeQps     float32
 	isScaled    map[bool]time.Time
+	factor      float32
 	latestCount *int32
 }
 
@@ -116,6 +118,6 @@ func (r *ScaleRecord) GetCount() *int32 {
 }
 
 func (r *ScaleRecord) RecordQps(qps float32, expireTime time.Duration) {
-	qpsDict := map[time.Time]float32{time.Now().Add(expireTime): qps}
+	qpsDict := map[time.Time]float32{time.Now().Add(expireTime): qps * r.factor}
 	r.latestQps = append(r.latestQps[1:], qpsDict)
 }

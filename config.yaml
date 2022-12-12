@@ -41,6 +41,7 @@ scaleServices:
 
   - serviceName: daohao
     namespace: demo-dev
+    factor: 2
     # other use default
 
 # Deployment指定的environment优先级会高于config.yaml
