@@ -24,7 +24,7 @@ type Calculate struct {
 	resetTick      <-chan time.Time
 	currentCount   int
 	durationCounts []map[int]time.Time
-	avg            float64  // 当前avgCnt秒内的平均值
+	avg            float32  // 当前avgCnt秒内的平均值
 	avgTime        int      // 一分钟内取样多少次
 	mutex          sync.Mutex
 	upstreams      map[string]time.Time
@@ -55,18 +55,18 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 			}
 		}
 		sum += c.currentCount / 2
-		c.avg = float64(sum) / float64(c.avgTime)
+		c.avg = float32(sum) / float32(c.avgTime)
 	default:
 	}
 	go c.clean()
 }
 
-func (c *Calculate) AvgQps() float64 {
+func (c *Calculate) AvgQps() float32 {
 	go c.clean()
 	if len(c.upstreams) == 0 || c.avg == 0 {
 		return 0
 	}
-	return c.avg / float64(len(c.upstreams))
+	return c.avg / float32(len(c.upstreams))
 }
 
 func (c *Calculate) GetPodCount() int32 {

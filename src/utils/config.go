@@ -25,9 +25,9 @@ type DefaultConfig struct {
 	ScaleIntervalTime int     `yaml:"scaleIntervalTime"`
 	MaxPod            int32   `yaml:"maxPod"`
 	MinPod            int32   `yaml:"minPod"`
-	MaxQps            float64 `yaml:"maxQps"`
-	SafeQps           float64 `yaml:"safeQps"`
-	Factor            int32   `yaml:"factor"`
+	MaxQps            float32 `yaml:"maxQps"`
+	SafeQps           float32 `yaml:"safeQps"`
+	Factor            float32 `yaml:"factor"`
 }
 
 func newScaleConfig(namespace, svc, minPod, maxPod, safeQps, maxQps, factor string) *scaleServiceConfig {
@@ -56,9 +56,9 @@ func newScaleConfig(namespace, svc, minPod, maxPod, safeQps, maxQps, factor stri
 		svc,
 		int32(_maxPod),
 		int32(_minPod),
-		float64(_maxQps),
-		float64(_safeQps),
-		int32(_factor),
+		float32(_maxQps),
+		float32(_safeQps),
+		float32(_factor),
 	}
 }
 
@@ -67,9 +67,9 @@ type scaleServiceConfig struct {
 	ServiceName string  `yaml:"serviceName"`
 	MaxPod      int32   `yaml:"maxPod"`
 	MinPod      int32   `yaml:"minPod"`
-	MaxQps      float64 `yaml:"maxQps"`
-	SafeQps     float64 `yaml:"safeQps"`
-	Factor      int32   `yaml:"factor"`
+	MaxQps      float32 `yaml:"maxQps"`
+	SafeQps     float32 `yaml:"safeQps"`
+	Factor      float32 `yaml:"factor"`
 }
 
 func (ssc *scaleServiceConfig) String() string {
@@ -96,6 +96,16 @@ type Config struct {
 
 func (c *Config) String() string {
 	return fmt.Sprintf("Config{Listen=%s:%d}", c.Listen.ListenAddr, c.Listen.Port)
+}
+
+func (c *Config) GetServiceConfig(service string) *scaleServiceConfig {
+	for _, _conf := range c.ScaleServices {
+		svcName := fmt.Sprintf("%s.%s", _conf.ServiceName, _conf.Namespace)
+		if svcName == service {
+			return _conf
+		}
+	}
+	return nil
 }
 
 func (c *Config) valid() {

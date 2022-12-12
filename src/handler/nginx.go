@@ -15,7 +15,7 @@ type nginxDataHandler struct {
 	autoService map[string]struct{}
 }
 
-func (ndh *nginxDataHandler) SetAutoService(services []string) {
+func (ndh *nginxDataHandler) SetScaleService(services []string) {
 	for _, service := range services {
 		ndh.autoService[service] = struct{}{}
 	}
@@ -30,7 +30,6 @@ func (ndh *nginxDataHandler) ParseData(data []byte) ingress.Access {
 	// JSON化之前，去掉URL里面的中文\x
 	jsonByte := bytes.ReplaceAll(byteStrings[1], []byte("\\x"), []byte(""))
 	accessItem := new(ingress.NGINXAccess)
-	// err := Unmarshal(jsonByte, accessItem)
 	err := ConcurUnmarshal(jsonByte, accessItem)
 	if err != nil {
 		log.Println("json failed", err)

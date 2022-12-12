@@ -17,7 +17,7 @@ type NGINXAccess struct {
 }
 
 func (na *NGINXAccess) ServiceName() string {
-	return fmt.Sprintf("%s.%s", na.Namespace, na.Service)
+	return fmt.Sprintf("%s.%s", na.Service, na.Namespace)
 }
 
 func (na *NGINXAccess) AccessTime() time.Time {

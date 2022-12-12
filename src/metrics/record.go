@@ -13,9 +13,9 @@ const (
 	wasteful
 )
 
-func NewScaleRecord(maxQps, safeQps float64, avgCount int) *ScaleRecord {
+func NewScaleRecord(maxQps, safeQps float32, avgCount int) *ScaleRecord {
 	return &ScaleRecord{
-		latestQps:   make([]map[time.Time]float64, avgCount, avgCount),
+		latestQps:   make([]map[time.Time]float32, avgCount, avgCount),
 		maxQps:      maxQps,
 		safeQps:     safeQps,
 		isScaled:    make(map[bool]time.Time),
@@ -24,9 +24,9 @@ func NewScaleRecord(maxQps, safeQps float64, avgCount int) *ScaleRecord {
 }
 
 type ScaleRecord struct {
-	latestQps   []map[time.Time]float64
-	maxQps      float64
-	safeQps     float64
+	latestQps   []map[time.Time]float32
+	maxQps      float32
+	safeQps     float32
 	isScaled    map[bool]time.Time
 	latestCount *int32
 }
@@ -36,7 +36,7 @@ func (r *ScaleRecord) String() string {
 }
 
 func (r *ScaleRecord) isState(state svcState) bool {
-	var value float64
+	var value float32
 	switch {
 	case state == 0:
 		value = r.maxQps
@@ -64,8 +64,8 @@ func (r *ScaleRecord) IsSafe() bool {
 
 func (r *ScaleRecord) GetSafeCount() *int32 {
 	count := new(int32)
-	sum := float64(0)
-	length := float64(0)
+	sum := float32(0)
+	length := float32(0)
 	for _, qpsDict := range r.latestQps {
 		for qpsTime, qps := range qpsDict {
 			if qpsTime.After(time.Now()) {
@@ -78,7 +78,7 @@ func (r *ScaleRecord) GetSafeCount() *int32 {
 		*count = 1
 		return count
 	}
-	*count = int32(math.Ceil(sum / length / r.safeQps))
+	*count = int32(math.Ceil(float64(sum / length / r.safeQps)))
 	if *count < int32(1) {
 		*count = int32(1)
 	}
@@ -115,7 +115,7 @@ func (r *ScaleRecord) GetCount() *int32 {
 	return r.latestCount
 }
 
-func (r *ScaleRecord) RecordQps(qps float64, expireTime time.Duration) {
-	qpsDict := map[time.Time]float64{time.Now().Add(expireTime): qps}
+func (r *ScaleRecord) RecordQps(qps float32, expireTime time.Duration) {
+	qpsDict := map[time.Time]float32{time.Now().Add(expireTime): qps}
 	r.latestQps = append(r.latestQps[1:], qpsDict)
 }

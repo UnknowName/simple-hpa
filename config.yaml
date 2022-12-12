@@ -13,9 +13,10 @@ default:
   maxPod: 2
   minPod: 1
   # QPS达到该值开始自动伸缩
-  maxQps: 10
+  maxQps: 5
   # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
-  safeQps: 6
+  safeQps: 2
+  # TODO 这一块要优化
   # 影响因子。用于测试验证，怕流量太大处理不过来，只接入部分流量时，计算会 * factor
   factor: 1
 
@@ -38,8 +39,8 @@ scaleServices:
     maxQps: 25
     safeQps: 20
 
-  - serviceName: ServiceName3
-    namespace: namespace3
+  - serviceName: daohao
+    namespace: demo-dev
     # other use default
 
 # Deployment指定的environment优先级会高于config.yaml
