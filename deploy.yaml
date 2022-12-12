@@ -37,8 +37,8 @@ spec:
           - name: SCALE_INTERVAL_TIME
             value: "120"
           - name: SCALE_SERVICES
-            # Namespace1.ServiceName1, Namespace2.ServiceName2:minPod:maxPod:safeQPS:maxQPS:factor
-            value: "wxd.sixunmall-web-host"
+            # Service.Namespace:minPod:maxPod:safeQPS:maxQPS:factor,another
+            value: "wxd.sixunmall-web-host:1:2:10:20:1"
           - name: FORWARDS
             # "TypeName:IP:Port"
             value: ""

@@ -38,7 +38,7 @@ type Server struct {
 
 func init() {
 	server = new(Server)
-	flag.StringVar(&server.configPath, "config", "./config.yaml", "config path ...")
+	flag.StringVar(&server.configPath, "config", "config.yaml", "config path ...")
 	flag.StringVar(&server.serviceName, "svc", "simple-hpa", "simple service name")
 	flag.StringVar(&server.tracerURL, "trace", "jaeger.jaeger-infra:5775", "trace url")
 	flag.Parse()
@@ -49,6 +49,13 @@ func init() {
 	if config.ScaleServices == nil || len(config.ScaleServices) == 0 {
 		log.Fatalln("WARNING, Auto scale dest service not defined")
 	}
+	go func() {
+		quitChan := make(chan os.Signal)
+		signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL)
+		c := <-quitChan
+		log.Println("received ", c)
+		os.Exit(0)
+	}()
 }
 
 func main() {
@@ -76,9 +83,6 @@ func main() {
 	k8sClient = scale.NewK8SClient()
 	poolHandler := handler.NewPoolHandler(config, k8sClient)
 	forward := utils.NewForward(config.Forwards)
-	quitChan := make(chan os.Signal)
-	signal.Notify(quitChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGILL)
-	go quit(quitChan, conn)
 	for {
 		n, err := conn.Read(buf[:])
 		if err != nil && err == io.EOF {
@@ -96,13 +100,5 @@ func main() {
 		poolHandler.Execute(bufByte.Bytes())
 		forward.Send(bufByte.Bytes())
 		bufByte.Reset()
-	}
-}
-
-func quit(c chan os.Signal, conn *net.UDPConn) {
-	select {
-	case <-c:
-		conn.Close()
-		return
 	}
 }
