@@ -2,23 +2,23 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: simple-hpa
-  name: simple-hpa
+    app: auto-scale
+  name: auto-scale
 spec:
   # Don't change
   replicas: 1
   selector:
     matchLabels:
-      app: simple-hpa
+      app: auto-scale
   template:
     metadata:
       labels:
-        app: simple-hpa
+        app: auto-scale
     spec:
       containers:
-        - image: docker.sixun.hw:5000/siss/simple-hpa
+        - image: unknowname/auto-scale
           imagePullPolicy: Always
-          name: simple-hpa
+          name: auto-scale
           env:
           - name: TZ
             value: "Asia/Shanghai"
@@ -56,15 +56,15 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: simple-hpa
-  name: simple-hpa
+    app: auto-scale
+  name: auto-scale
 spec:
   ports:
     - port: 514
       protocol: UDP
       targetPort: 514
   selector:
-    app: simple-hpa
+    app: auto-scale
   sessionAffinity: None
   type: ClusterIP
 
@@ -74,7 +74,7 @@ kind: ClusterRole
 metadata:
   labels:
     kubernetes.io/bootstrapping: rbac-defaults
-  name: simple-hpa
+  name: auto-scale
 rules:
   - apiGroups:
       - '*'
@@ -90,11 +90,11 @@ kind: ClusterRoleBinding
 metadata:
   labels:
     kubernetes.io/bootstrapping: rbac-defaults
-  name: simple-hpa
+  name: auto-scale
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: simple-hpa
+  name: auto-scale
 subjects:
   - kind: ServiceAccount
     name: default
