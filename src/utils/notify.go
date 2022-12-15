@@ -72,6 +72,7 @@ func (dd *dDingSender) Send(msg string) {
 	resp, err := client.Post(dd.url, contentType, bytes.NewBuffer(_bytes))
 	if err != nil {
 		log.Println(err)
+		return
 	}
 	buf := make([]byte, 1024)
 	n, _ := resp.Body.Read(buf)

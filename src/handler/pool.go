@@ -107,7 +107,8 @@ func (ph *PoolHandler) startRecord() {
 				if v, exist := ph.scaleRecord[service]; exist {
 					v.RecordQps(calculate.AvgQps()*_conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
 				} else {
-					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps, _conf.Factor, ph.config.Default.AvgTime)
+					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps,
+						_conf.Factor,ph.config.Default.AvgTime, ph.config.Default.ScaleIntervalTime)
 				}
 			}
 		}

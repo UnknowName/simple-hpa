@@ -11,14 +11,17 @@ type svcState int
 const (
 	safe svcState = iota
 	wasteful
+	minute = 60
 )
 
-func NewScaleRecord(maxQps, safeQps, factor float32, avgCount int) *ScaleRecord {
+func NewScaleRecord(maxQps, safeQps, factor float32, avgTime, scaleIntervalTime int) *ScaleRecord {
+	avgCount := minute / avgTime
+	initTime := time.Now().Add(time.Second * time.Duration(scaleIntervalTime))
 	return &ScaleRecord{
 		latestQps:   make([]map[time.Time]float32, avgCount, avgCount),
 		maxQps:      maxQps,
 		safeQps:     safeQps,
-		isScaled:    make(map[bool]time.Time),
+		isScaled:    map[bool]time.Time{true: initTime},
 		factor:      factor,
 		latestCount: nil,
 	}
