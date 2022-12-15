@@ -1,6 +1,6 @@
 simple-hpa:
-  image: unknowname/simple-hpa
-  container_name: simple-hpa
+  image: unknowname/auto-scale
+  container_name: auto-scale
   # default 514/udp
   net: host
   restart: always
