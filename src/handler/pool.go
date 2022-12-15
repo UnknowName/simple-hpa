@@ -19,6 +19,7 @@ const (
 	randTime                     = time.Millisecond * 211
 	defaultQueueSize             = 1024
 	defaultPoolSize              = 10
+	timeFmt                      = "2006-01-02 15:04:05"
 	nginx            IngressType = iota
 	traefik
 )
@@ -58,11 +59,19 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 		workers[i] = newDataHandler(ingressType)
 		queues[i] = make(chan []byte, defaultQueueSize)
 	}
+	senders := make([]utils.Sender, 0)
+	for _, _conf := range config.Notifies {
+		sender := utils.NewSender(_conf.Type, _conf.Token)
+		if sender == nil {
+			continue
+		}
+		senders = append(senders, sender)
+	}
 	poolHandler := &PoolHandler{
 		k8sClient:   client,
 		config:      config,
-		ingressType: ingressType,
 		workers:     workers,
+		senders:     senders,
 		poolSize:    defaultPoolSize,
 		queue:       queues,
 		qpsRecord:   make(map[string]*metrics.Calculate),
@@ -75,7 +84,7 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 type PoolHandler struct {
 	k8sClient   *scale.K8SClient
 	config      *utils.Config
-	ingressType IngressType
+	senders     []utils.Sender
 	workers     []handler
 	poolSize    uint8
 	queue       []chan []byte
@@ -96,8 +105,7 @@ func (ph *PoolHandler) startRecord() {
 					log.Fatalln(service, "not config in config.yaml")
 				}
 				if v, exist := ph.scaleRecord[service]; exist {
-					// TODO 应该在AvgQPS值输出时就是正确的，不用相乘
-					v.RecordQps(calculate.AvgQps() * _conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
+					v.RecordQps(calculate.AvgQps()*_conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
 				} else {
 					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps, _conf.Factor, ph.config.Default.AvgTime)
 				}
@@ -115,13 +123,9 @@ func (ph *PoolHandler) startEcho(echoTime time.Duration) {
 				if qps == nil || _conf == nil {
 					continue
 				}
-				log.Printf("%s latest %d second, qps(*%.f)=%.2f of per pod,%d second active backend pod=%d",
-					svc,
-					ph.config.Default.AvgTime,
-					_conf.Factor,
-					qps.AvgQps() * _conf.Factor,
-					ph.config.Default.AvgTime,
-					qps.GetPodCount())
+				log.Printf("%s latest %d second, qps(*%.f)=%.2f of per pod,%d second calculate backends %d",
+					svc, ph.config.Default.AvgTime, _conf.Factor, qps.AvgQps()*_conf.Factor,
+					ph.config.Default.AvgTime, qps.GetPodCount())
 			}
 		}
 	}
@@ -195,6 +199,8 @@ func (ph *PoolHandler) startAutoScale() {
 							return
 						}
 						if *currCnt == *newCount {
+							ph.qpsRecord[namespaceSvc].SetPodCount(newCount)
+							log.Println(namespaceSvc, "arrived max count", *newCount, "maybe you need more larger count")
 							return
 						}
 						err = ph.k8sClient.ChangeServicePod(namespace, service, newCount)
@@ -202,9 +208,15 @@ func (ph *PoolHandler) startAutoScale() {
 							log.Printf("WARN %s scale failed %s", namespaceSvc, err)
 							return
 						} else {
-							log.Printf("%s scale from %d to %d", namespaceSvc, *currCnt, *newCount)
+							ph.qpsRecord[namespaceSvc].SetPodCount(newCount)
 							scaleRecord.ChangeCount(newCount)
 							scaleRecord.ChangeScaleState(true, ph.config.Default.ScaleIntervalTime)
+							msg := fmt.Sprintf("%s %s scale from %d => %d",
+								time.Now().Format(timeFmt), namespaceSvc, *currCnt, *newCount)
+							log.Println("send message ", msg)
+							for _, sender := range ph.senders {
+								go sender.Send(msg)
+							}
 						}
 					}()
 				}

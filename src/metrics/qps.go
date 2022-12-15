@@ -13,6 +13,7 @@ func NewCalculate(upstreamAddr string, accessTime time.Time, avgTime int) *Calcu
 		currentCount:   1,
 		durationCounts: make([]map[int]time.Time, avgTime, avgTime),
 		avg:            0,
+		cacheCnt:       nil,
 		avgTime:        avgTime,
 		mutex:          sync.Mutex{},
 		upstreams:      map[string]time.Time{upstreamAddr: accessTime},
@@ -28,6 +29,7 @@ type Calculate struct {
 	avgTime        int      // 一分钟内取样多少次
 	mutex          sync.Mutex
 	upstreams      map[string]time.Time
+	cacheCnt       *int32
 }
 
 func (c *Calculate) String() string {
@@ -69,7 +71,17 @@ func (c *Calculate) AvgQps() float32 {
 	return c.avg / float32(len(c.upstreams))
 }
 
+func (c *Calculate) SetPodCount(n *int32) {
+	if c.cacheCnt == nil {
+		c.cacheCnt = new(int32)
+	}
+	c.cacheCnt = n
+}
+
 func (c *Calculate) GetPodCount() int32 {
+	if c.cacheCnt != nil {
+		return *c.cacheCnt
+	}
 	c.clean()
 	length := int32(len(c.upstreams))
 	return length

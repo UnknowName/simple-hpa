@@ -91,6 +91,7 @@ type Config struct {
 	Default       *DefaultConfig        `yaml:"default"`
 	Listen        listenConfig          `yaml:"listen"`
 	Forwards      []ForwardConfig       `yaml:"forwards"`
+	Notifies      []notifyConfig        `yaml:"notifies"`
 	ScaleServices []*scaleServiceConfig `yaml:"scaleServices"`
 }
 
@@ -210,16 +211,42 @@ func (c *Config) getEnvConfig() {
 		c.IngressType = ingressType
 	}
 	_forwards := os.Getenv("FORWARDS")
-	if len(_forwards) <= 0 {
-		return
-	}
 	forwardConfigs := make([]ForwardConfig, 0)
 	for _, _forward := range strings.Split(_forwards, ",") {
-		typeName, addr := strings.Split(_forward, "=")[0], strings.Split(_forward, "=")[1]
+		_forward = strings.TrimSpace(_forward)
+		if _forward == "" {
+			continue
+		}
+		values := strings.Split(_forward, "=")
+		if len(values) != 2 {
+			log.Println("WARN ", _forward, "env forward no valid")
+			continue
+		}
+		typeName, addr := values[0], values[1]
 		forwardConfigs = append(forwardConfigs, ForwardConfig{typeName, addr})
 	}
 	if len(forwardConfigs) > 0 {
 		c.Forwards = forwardConfigs
+	}
+	notify := os.Getenv("NOTIFIES")
+	notifies := strings.Split(notify, ",")
+	notifyConfigs := make([]notifyConfig, 0)
+	for _, _notify := range notifies {
+		_notify = strings.TrimSpace(_notify)
+		if _notify == "" {
+			continue
+		}
+		values := strings.Split(_notify, ":")
+		if len(values) != 3 {
+			log.Println("WARN env notify", _notify, "no valid")
+			continue
+		}
+		typeName, token, keyword := values[0], values[1], values[2]
+		notifyConfig := notifyConfig{typeName, token, keyword}
+		notifyConfigs = append(notifyConfigs, notifyConfig)
+	}
+	if len(notifyConfigs) > 0 {
+		c.Notifies = notifyConfigs
 	}
 }
 
@@ -243,4 +270,10 @@ func NewConfig(filename string) *Config {
 	config.getEnvConfig()
 	config.valid()
 	return config
+}
+
+type notifyConfig struct {
+	Type    string `json:"type"`
+	Token   string `json:"token"`
+	Keyword string `json:"keyword"`
 }

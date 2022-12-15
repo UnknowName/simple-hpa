@@ -40,7 +40,7 @@ spec:
             # Service.Namespace:minPod:maxPod:safeQPS:maxQPS:factor,another
             value: "wxd.sixunmall-web-host:1:2:10:20:1"
           - name: FORWARDS
-            # "TypeName:IP:Port"
+            # "TypeName=IP:Port,another"
             value: ""
           ports:
             - containerPort: 514

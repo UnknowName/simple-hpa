@@ -44,7 +44,7 @@ func init() {
 	flag.Parse()
 	pwd, _ := os.Getwd()
 	cfg := path.Join(pwd, server.configPath)
-	log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
+	// log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
 	if config.ScaleServices == nil || len(config.ScaleServices) == 0 {
 		log.Fatalln("WARNING, Auto scale dest service not defined")

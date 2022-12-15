@@ -16,9 +16,13 @@ default:
   maxQps: 5
   # QPS安全值，将Pod的QPS伸缩到该值。如果Pod太多，也会基于该值减少
   safeQps: 2
-  # TODO 这一块要优化
   # 影响因子。用于测试验证，怕流量太大处理不过来，只接入部分流量时，计算会 * factor
   factor: 1
+
+notifies:
+  - type: dding
+    token: sssssss
+    keyWord: auto-scale
 
 # use env ServiceName.Namespace:minPod:maxPod:safeQps:maxQps:factor
 scaleServices:
