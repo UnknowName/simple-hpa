@@ -15,9 +15,9 @@ simple-hpa:
     SCALE_INTERVAL_TIME: "120"
     # notify typeName:token:keyword
     NOTIFIES: dding:token:keyword,
-    # ServiceName:Namespace:minPod:maxPod:safeQps:maxQps:factor,
-    SCALE_SERVICES: "NameSpace.ServiceName:1:2:10:25:1"
-    # typeName=ip:port
+    # ServiceName.Namespace:minPod:maxPod:safeQps:maxQps:factor,another
+    SCALE_SERVICES: "ServiceName.Namespace:1:2:10:25:1"
+    # typeName=ip:port,another
     FORWARDS: syslog=128.0.21.56:514,
   mem_limit: "200M"
   volumes:
