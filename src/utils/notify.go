@@ -64,10 +64,7 @@ type dDingSender struct {
 
 func (dd *dDingSender) Send(msg string) {
 	_msg := newTMessage(msg, nil, false)
-	_bytes, err := json.Marshal(_msg)
-	if err != nil {
-		log.Println("msg transition json error: ", err)
-	}
+	_bytes, _ := json.Marshal(_msg)
 	client := http.Client{Timeout: time.Second * Timeout}
 	resp, err := client.Post(dd.url, contentType, bytes.NewBuffer(_bytes))
 	if err != nil {
@@ -76,5 +73,5 @@ func (dd *dDingSender) Send(msg string) {
 	}
 	buf := make([]byte, 1024)
 	n, _ := resp.Body.Read(buf)
-	log.Println(string(buf[:n]))
+	log.Println("notify response:",string(buf[:n]))
 }

@@ -14,14 +14,13 @@ const (
 	minute = 60
 )
 
-func NewScaleRecord(maxQps, safeQps, factor float32, avgTime, scaleIntervalTime int) *ScaleRecord {
+func NewScaleRecord(maxQps, safeQps, factor float32, avgTime int) *ScaleRecord {
 	avgCount := minute / avgTime
-	initTime := time.Now().Add(time.Second * time.Duration(scaleIntervalTime))
 	return &ScaleRecord{
 		latestQps:   make([]map[time.Time]float32, avgCount, avgCount),
 		maxQps:      maxQps,
 		safeQps:     safeQps,
-		isScaled:    map[bool]time.Time{true: initTime},
+		isScaled:    map[bool]time.Time{},
 		factor:      factor,
 		latestCount: nil,
 	}
@@ -41,23 +40,31 @@ func (r *ScaleRecord) String() string {
 }
 
 func (r *ScaleRecord) isState(state svcState) bool {
-	var value float32
 	switch {
-	case state == 0:
-		value = r.maxQps
-	case state == 1:
-		value = r.safeQps / 2
+	case state == safe:
+		for _, qpsDict := range r.latestQps {
+			for qpsTime, qps := range qpsDict {
+				if qpsTime.After(time.Now()) && qps < r.maxQps {
+					return true
+				}
+			}
+		}
+		// 假设是不安全的，那么就是所有记录里面的值全部要小于r.maxQps.有一个则为true,因为外面是取反
+		return  false
+	case state == wasteful:
+		for _, qpsDict := range r.latestQps {
+			for qpsTime, qps := range qpsDict {
+				if qpsTime.After(time.Now()) && qps > r.safeQps / 2 {
+					return false
+				}
+			}
+		}
+		// 假设为真，那么就需要记录里面的全部要小于安全的一半，有一个不小于，则为假。因为外面就是取直接值
+		return true
 	default:
 		panic(fmt.Sprintf("un know state, %v", state))
 	}
-	for _, qpsDict := range r.latestQps {
-		for qpsTime, qps := range qpsDict {
-			if qpsTime.After(time.Now()) && qps > value {
-				return false
-			}
-		}
-	}
-	return true
+	return false
 }
 
 func (r *ScaleRecord) IsSafe() bool {

@@ -4,7 +4,7 @@ import (
     "fmt"
     "testing"
 
-    ingress2 "simple-hpa/src/ingress"
+    ingress2 "auto-scale/src/ingress"
 )
 
 func TestUnmarshal(t *testing.T) {

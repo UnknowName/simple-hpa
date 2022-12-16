@@ -1,14 +1,14 @@
 package handler
 
 import (
-    "simple-hpa/src/scale"
-    "simple-hpa/src/utils"
+    "auto-scale/src/scale"
+    "auto-scale/src/utils"
     "testing"
     "time"
 )
 
 func TestNewPoolHandler(t *testing.T) {
-    config := utils.NewConfig("F:\\GoCodes\\simple-hpa\\config.yml")
+    config := utils.NewConfig("F:\\GoCodes\\simple-hpa\\config.yaml")
     client := scale.NewK8SClient()
     pool := NewPoolHandler(config, client)
     pool.Execute([]byte("hello,world"))

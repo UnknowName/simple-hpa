@@ -107,8 +107,7 @@ func (ph *PoolHandler) startRecord() {
 				if v, exist := ph.scaleRecord[service]; exist {
 					v.RecordQps(calculate.AvgQps()*_conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
 				} else {
-					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps,
-						_conf.Factor,ph.config.Default.AvgTime, ph.config.Default.ScaleIntervalTime)
+					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps, _conf.Factor,ph.config.Default.AvgTime)
 				}
 			}
 		}
@@ -183,6 +182,7 @@ func (ph *PoolHandler) startAutoScale() {
 					// 说明过量或者过少，都要调整，但是这里记录下上次调整的时间节点，防止频繁的改动
 					newCount := scaleRecord.GetSafeCount()
 					if *newCount > config.MaxPod {
+						log.Printf("%s want=%d  max=%d myabe need more", namespaceSvc, *newCount, config.MaxPod)
 						*newCount = config.MaxPod
 					} else if *newCount < config.MinPod {
 						*newCount = config.MinPod
@@ -201,7 +201,6 @@ func (ph *PoolHandler) startAutoScale() {
 						}
 						if *currCnt == *newCount {
 							ph.qpsRecord[namespaceSvc].SetPodCount(newCount)
-							log.Println(namespaceSvc, "arrived max count", *newCount, "maybe you need more larger count")
 							return
 						}
 						err = ph.k8sClient.ChangeServicePod(namespace, service, newCount)
