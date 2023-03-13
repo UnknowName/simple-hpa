@@ -8,8 +8,8 @@ import (
 
 func NewCalculate(upstreamAddr string, accessTime time.Time, avgTime int) *Calculate {
 	return &Calculate{
-		secondTick:     time.Tick(time.Second),
-		resetTick:      time.Tick(time.Duration(avgTime) * time.Second),
+		secondTick:     time.NewTicker(time.Second),
+		resetTick:      time.NewTicker(time.Duration(avgTime) * time.Second),
 		currentCount:   1,
 		durationCounts: make([]map[int]time.Time, avgTime, avgTime),
 		avg:            0,
@@ -21,12 +21,12 @@ func NewCalculate(upstreamAddr string, accessTime time.Time, avgTime int) *Calcu
 }
 
 type Calculate struct {
-	secondTick     <-chan time.Time
-	resetTick      <-chan time.Time
+	secondTick     *time.Ticker
+	resetTick      *time.Ticker
 	currentCount   int
 	durationCounts []map[int]time.Time
-	avg            float32  // 当前avgCnt秒内的平均值
-	avgTime        int      // 一分钟内取样多少次
+	avg            float32 // 当前avgCnt秒内的平均值
+	avgTime        int     // 一分钟内取样多少次
 	mutex          sync.Mutex
 	upstreams      map[string]time.Time
 	cacheCnt       *int32
@@ -42,12 +42,12 @@ func (c *Calculate) Update(upstream string, accessTime time.Time) {
 	c.upstreams[upstream] = accessTime
 	c.currentCount += 1
 	select {
-	case <-c.secondTick:
+	case <-c.secondTick.C:
 		// 增加一个时间是防止前面有值，后面为空时，值不对的情况，这时就不要它了，显示为0
 		data := map[int]time.Time{c.currentCount: time.Now().Add(time.Duration(c.avgTime) * time.Second)}
 		c.durationCounts = append(c.durationCounts[1:], data)
 		c.currentCount = 0
-	case <-c.resetTick:
+	case <-c.resetTick.C:
 		sum := 0
 		for _, dict := range c.durationCounts {
 			for count, addTime := range dict {
@@ -102,4 +102,63 @@ func (c *Calculate) clean() {
 			}
 		}
 	}
+}
+
+// ChapGPT version
+
+type QpsMetric struct {
+	reqChan       <-chan struct{}
+	count         uint64
+	interval      time.Duration
+	stopChan      chan struct{}
+	timer         *time.Timer
+	ticker        *time.Ticker
+	qpsCalculator func(float64, time.Duration) float64
+}
+
+func qpsCalculator(count float64, interval time.Duration) float64 {
+	return count / interval.Seconds()
+}
+
+func NewQPSMetric(reqChan <-chan struct{}, interval time.Duration) *QpsMetric {
+	return &QpsMetric{
+		reqChan:       reqChan,
+		interval:      interval,
+		stopChan:      make(chan struct{}),
+		qpsCalculator: qpsCalculator,
+	}
+}
+
+func (qm *QpsMetric) Close() {
+	qm.stopChan <- struct{}{}
+	qm.timer.Stop()
+	qm.ticker.Stop()
+}
+
+func (qm *QpsMetric) Start() <-chan float64 {
+	resultChan := make(chan float64)
+	// 放在上面，防止频繁创建对象导致的资源泄露
+	qm.timer = time.NewTimer(qm.interval)
+	qm.ticker = time.NewTicker(qm.interval)
+	go func() {
+		for {
+			select {
+			case <-qm.timer.C:
+				qm.timer.Reset(qm.interval)
+				qps := qpsCalculator(float64(qm.count), qm.interval)
+				resultChan <- qps
+				qm.count = 0
+			case <-qm.stopChan:
+				close(resultChan)
+				qm.Close()
+				return
+			case <- qm.ticker.C:
+				qps := qpsCalculator(float64(qm.count), qm.interval)
+				resultChan <- qps
+			case <- qm.reqChan:
+				qm.count++
+			}
+		}
+	}()
+	return resultChan
 }
