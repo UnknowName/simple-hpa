@@ -38,7 +38,7 @@ func newDataHandler(ingressType IngressType) handler {
 			autoService: make(map[string]struct{}),
 		}
 	default:
-		panic("un support ingress type")
+		log.Fatalln("un support ingress type")
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 	case "traefik":
 		ingressType = traefik
 	default:
-		panic("Not support Ingress type")
+		log.Fatalln("Not support Ingress type")
 	}
 	workers := make([]handler, defaultPoolSize, defaultPoolSize)
 	queues := make([]chan []byte, defaultPoolSize, defaultPoolSize)
@@ -154,6 +154,7 @@ func (ph *PoolHandler) startWorkers() {
 				if accessItem == nil {
 					continue
 				}
+				// todo 这时放入滑动窗口队列
 				calculateQPS(accessItem, &ph.qpsRecord)
 			}
 		}(i, worker)

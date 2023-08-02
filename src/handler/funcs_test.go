@@ -13,7 +13,7 @@ func TestUnmarshal(t *testing.T) {
         "\"service\": \"sixunmall-web-host\""
     byteStr := []byte(str)
     accessItem := new(ingress2.NGINXAccess)
-    err := Unmarshal(byteStr, accessItem)
+    err := ConcurUnmarshal(byteStr, accessItem)
     fmt.Println(err)
     fmt.Println(accessItem)
 }
