@@ -35,7 +35,6 @@ func (ndh *nginxDataHandler) ParseData(data []byte) ingress.Access {
 		log.Println("json failed", err)
 		return nil
 	}
-	// 原始数据有问题，非json化数据
 	if _, ok := ndh.autoService[accessItem.ServiceName()]; ok {
 		return accessItem
 	}
