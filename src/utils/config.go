@@ -2,7 +2,6 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -111,10 +110,10 @@ func (c *Config) GetServiceConfig(service string) *scaleServiceConfig {
 
 func (c *Config) valid() {
 	if c.Default.MaxQps < c.Default.SafeQps {
-		panic("config error, default.maxQPS < default.safeQPS")
+		log.Fatalln("config error, default.maxQPS < default.safeQPS")
 	}
 	if c.Default.MaxPod < c.Default.MinPod {
-		panic("config error, default.maxPod < default.minPod")
+		log.Fatalln("config error, default.maxPod < default.minPod")
 	}
 	if c.Default.MinPod < defaultMinPod {
 		c.Default.MinPod = defaultMinPod
@@ -150,7 +149,7 @@ func (c *Config) valid() {
 			scaleConfig.MinPod = c.Default.MinPod
 		}
 		if scaleConfig.MaxPod < scaleConfig.MinPod {
-			panic(fmt.Sprintf("%s config err, MaxPod < MinPod", scaleConfig.ServiceName))
+			log.Fatalln(fmt.Sprintf("%s config err, MaxPod < MinPod", scaleConfig.ServiceName))
 		}
 		if scaleConfig.MaxQps <= 0 {
 			scaleConfig.MaxQps = c.Default.MaxQps
@@ -159,7 +158,7 @@ func (c *Config) valid() {
 			scaleConfig.SafeQps = c.Default.SafeQps
 		}
 		if scaleConfig.MaxQps < scaleConfig.SafeQps {
-			panic(fmt.Sprintf("%s config err, MaxQps < SafeQps", scaleConfig.ServiceName))
+			log.Fatalln(fmt.Sprintf("%s config err, MaxQps < SafeQps", scaleConfig.ServiceName))
 		}
 		if scaleConfig.Factor <= 0 {
 			scaleConfig.Factor = c.Default.Factor
@@ -258,7 +257,7 @@ func NewConfig(filename string) *Config {
 		return nil
 	}
 	defer file.Close()
-	bytes, err := ioutil.ReadFile(filename)
+	bytes, err := os.ReadFile(filename)
 	if err != nil {
 		log.Fatalln("Read yaml file error ", err)
 		return nil
