@@ -1,23 +1,33 @@
 package scale
 
 import (
+	"log"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
-	"log"
-	"path/filepath"
 )
+
+var client *k8SClient
+
+type Scaler interface {
+	GetServicePod(namespace, service string) (*int32, error)
+	ChangeServicePod(namespace, service string, newCount *int32) error
+}
 
 func getClient() (*kubernetes.Clientset, error) {
 	client, err := getClientOutCluster()
 	if err == nil {
-		log.Println("fond the kube config file,guess out cluster")
+		log.Println("there is a kube file,guess outside the cluster")
 		return client, nil
 	}
-	log.Println("guess in cluster")
+	log.Println("guess inside the cluster")
 	return getClientInCluster()
 }
 
@@ -47,19 +57,22 @@ func getClientInCluster() (*kubernetes.Clientset, error) {
 	return kubernetes.NewForConfig(config)
 }
 
-func NewK8SClient() *K8SClient {
-	clientset,err := getClient()
+func newK8SClient() *k8SClient {
+	if client != nil {
+		return client
+	}
+	clientset, err := getClient()
 	if err != nil {
 		log.Fatalln("init client failed")
 	}
-	return &K8SClient{clientset: clientset}
+	return &k8SClient{clientset: clientset}
 }
 
-type K8SClient struct {
+type k8SClient struct {
 	clientset *kubernetes.Clientset
 }
 
-func (kc *K8SClient) GetServicePod(namespace, service string) (*int32, error) {
+func (kc *k8SClient) GetServicePod(namespace, service string) (*int32, error) {
 	dep, err := kc.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), service, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
@@ -67,7 +80,7 @@ func (kc *K8SClient) GetServicePod(namespace, service string) (*int32, error) {
 	return dep.Spec.Replicas, nil
 }
 
-func (kc *K8SClient) ChangeServicePod(namespace, service string, newCount *int32) error {
+func (kc *k8SClient) ChangeServicePod(namespace, service string, newCount *int32) error {
 	dep, err := kc.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), service, metav1.GetOptions{})
 	if err != nil {
 		return err
@@ -75,4 +88,106 @@ func (kc *K8SClient) ChangeServicePod(namespace, service string, newCount *int32
 	dep.Spec.Replicas = newCount
 	_, err = kc.clientset.AppsV1().Deployments(namespace).Update(context.TODO(), dep, metav1.UpdateOptions{})
 	return err
+}
+
+func newOks(c int) *oks {
+	return &oks{data: make([]bool, c, c), i: 0}
+}
+
+type oks struct {
+	data []bool
+	i    int
+}
+
+func (o *oks) insert(r bool) {
+	o.data[0.i] = r
+	o.i = (o.i + 1) % len(o.data)
+}
+
+func (o *oks) isTrue() bool {
+	for _, v := range o.data {
+		if v == false {
+			return false
+		}
+	}
+	return true
+}
+
+func NewScaler(cnt, internal int) *ScalerManage {
+	r := &ScalerManage{
+		cnt:       cnt,
+		interval:  time.Second * time.Duration(internal),
+		histories: make(map[string]time.Time),
+		client:    newK8SClient(),
+		safes:     make(map[string]*oks),
+		wastes:    make(map[string]*oks),
+	}
+	return r
+}
+
+type ScalerManage struct {
+	cnt       int
+	interval  time.Duration
+	histories map[string]time.Time // 历史操作记录
+	safes     map[string]*oks
+	wastes    map[string]*oks
+	client    *k8SClient
+}
+
+func (sm *ScalerManage) Update(k string, isSafe, isWaste bool) {
+	if val, ok := sm.safes[k]; !ok {
+		sm.safes[k] = newOks(sm.cnt)
+	} else {
+		val.insert(isSafe)
+	}
+	if val, ok := sm.wastes[k]; !ok {
+		sm.wastes[k] = newOks(sm.cnt)
+	} else {
+		val.insert(isWaste)
+	}
+}
+
+func (sm *ScalerManage) NeedChange(serviceName string) bool {
+	latest, ok := sm.histories[serviceName]
+	if !ok {
+		sm.histories[serviceName] = time.Now().Add(sm.interval)
+		return false
+	}
+	if latest.After(time.Now()) {
+		return false
+	}
+	if !sm.isSafe(serviceName) {
+		return true
+	}
+	return sm.isWaste(serviceName)
+}
+
+func (sm *ScalerManage) isSafe(serviceName string) bool {
+	return sm.safes[serviceName].isTrue()
+}
+
+func (sm *ScalerManage) isWaste(serviceName string) bool {
+	return sm.wastes[serviceName].isTrue()
+}
+
+func (sm *ScalerManage) ChangeServicePod(serviceName string, newCnt *int32) {
+	namespaces := strings.Split(serviceName, ".")
+	if len(namespaces) != 2 {
+		log.Fatalln(serviceName, "no valid serviceName, use format like svc.namespace")
+	}
+	namespace, service := namespaces[1], namespaces[0]
+	old, err := sm.client.GetServicePod(namespace, service)
+	if err != nil {
+		log.Println("get ", serviceName, "pod error", err)
+		return
+	}
+	if *old == *newCnt {
+		return
+	}
+	log.Printf("change %s from %d to %d", serviceName, *old, *newCnt)
+	err = sm.client.ChangeServicePod(namespace, service, newCnt)
+	sm.histories[serviceName] = time.Now().Add(sm.interval)
+	if err != nil {
+		log.Println("change service pod error", err)
+	}
 }

@@ -3,11 +3,10 @@ package handler
 import (
 	"fmt"
 	"log"
-	"strings"
+	"math"
 	"time"
 
 	"auto-scale/src/ingress"
-	"auto-scale/src/metrics"
 	"auto-scale/src/scale"
 	"auto-scale/src/utils"
 )
@@ -19,7 +18,7 @@ const (
 	randTime                     = time.Millisecond * 211
 	defaultQueueSize             = 1024
 	defaultPoolSize              = 10
-	timeFmt                      = "2006-01-02 15:04:05"
+	// timeFmt                      = "2006-01-02 15:04:05"
 	nginx            IngressType = iota
 	traefik
 )
@@ -43,7 +42,7 @@ func newDataHandler(ingressType IngressType) handler {
 	return nil
 }
 
-func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler {
+func NewPoolHandler(config *utils.Config) *PoolHandler {
 	var ingressType IngressType
 	switch config.IngressType {
 	case "nginx":
@@ -68,73 +67,75 @@ func NewPoolHandler(config *utils.Config, client *scale.K8SClient) *PoolHandler 
 		senders = append(senders, sender)
 	}
 	poolHandler := &PoolHandler{
-		k8sClient:   client,
-		config:      config,
-		workers:     workers,
-		senders:     senders,
-		poolSize:    defaultPoolSize,
-		queue:       queues,
-		qpsRecord:   make(map[string]*metrics.Calculate),
-		scaleRecord: make(map[string]*metrics.ScaleRecord),
+		config:     config,
+		workers:    workers,
+		senders:    senders,
+		calculator: NewCalculator(config.Default.AvgTime),
+		adjuster:   scale.NewScaler(minuteCount/config.Default.AvgTime, config.Default.ScaleIntervalTime),
+		poolSize:   defaultPoolSize,
+		queue:      queues,
 	}
 	poolHandler.startWorkers()
 	return poolHandler
 }
 
 type PoolHandler struct {
-	k8sClient   *scale.K8SClient
-	config      *utils.Config
-	senders     []utils.Sender
-	workers     []handler
-	poolSize    uint8
-	queue       []chan []byte
-	isStart     bool
-	qpsRecord   map[string]*metrics.Calculate
-	scaleRecord map[string]*metrics.ScaleRecord
-}
-
-func (ph *PoolHandler) startRecord() {
-	avgTimeTick := time.Tick(time.Second * time.Duration(60/ph.config.Default.AvgTime))
-	dict := &ph.qpsRecord
-	for {
-		select {
-		case <-avgTimeTick:
-			for service, calculate := range *dict {
-				_conf := ph.config.GetServiceConfig(service)
-				if _conf == nil {
-					log.Fatalln(service, "not config in config.yaml")
-				}
-				if v, exist := ph.scaleRecord[service]; exist {
-					v.RecordQps(calculate.AvgQps()*_conf.Factor, time.Duration(ph.config.Default.ScaleIntervalTime)*time.Second)
-				} else {
-					ph.scaleRecord[service] = metrics.NewScaleRecord(_conf.MaxQps, _conf.SafeQps, _conf.Factor, ph.config.Default.AvgTime)
-				}
-			}
-		}
-	}
-}
-
-func (ph *PoolHandler) startEcho(echoTime time.Duration) {
-	tk := time.NewTicker(echoTime)
-	for {
-		select {
-		case <-tk.C:
-			for svc, qps := range ph.qpsRecord {
-				_conf := ph.config.GetServiceConfig(svc)
-				if qps == nil || _conf == nil {
-					continue
-				}
-				log.Printf("%s latest %d second, qps(*%.f)=%.2f of per pod,%d second calculate backends %d",
-					svc, ph.config.Default.AvgTime, _conf.Factor, qps.AvgQps()*_conf.Factor,
-					ph.config.Default.AvgTime, qps.GetPodCount())
-			}
-		}
-	}
+	config     *utils.Config
+	senders    []utils.Sender
+	workers    []handler
+	calculator *Calculator
+	adjuster   *scale.ScalerManage
+	poolSize   uint8
+	queue      []chan []byte
+	isStart    bool
 }
 
 func (ph *PoolHandler) Execute(data []byte) {
 	index := time.Now().UnixMilli() % defaultPoolSize
 	ph.queue[index] <- data
+}
+
+func (ph *PoolHandler) autoScale() {
+	log.Println("start auto scale worker success")
+	for {
+		record := <-ph.calculator.Pipeline()
+		if record == nil {
+			continue
+		}
+		conf := ph.config.GetServiceConfig(record.ServiceName)
+		if conf == nil {
+			continue
+		}
+		qps := record.AvgQps() * conf.Factor / float32(ph.config.Default.AvgTime)
+		log.Printf("latest %d seconds %s qps(*%.1f)=%.1f active upstreams=%d",
+			ph.config.Default.AvgTime,
+			record.ServiceName,
+			conf.Factor,
+			qps,
+			record.TotalUpstreams,
+		)
+		ph.adjuster.Update(record.ServiceName, qps < conf.MaxQps, qps < conf.SafeQps)
+		if ph.adjuster.NeedChange(record.ServiceName) {
+			cnt := int32(math.Ceil(float64(qps / conf.MaxQps)))
+			if cnt == 0 {
+				continue
+			}
+			if cnt > conf.MaxPod {
+				log.Printf("%s wants %d, but max is %d", record.ServiceName, cnt, conf.MaxPod)
+				cnt = conf.MaxPod
+			}
+			if cnt < conf.MinPod {
+				log.Printf("%s wants %d, but min is %d", record.ServiceName, cnt, conf.MinPod)
+				cnt = conf.MinPod
+			}
+			go func() {
+				for _, sender := range ph.senders {
+					sender.Send(fmt.Sprintf("%s new count %d", record.ServiceName, cnt))
+				}
+			}()
+			ph.adjuster.ChangeServicePod(record.ServiceName, &cnt)
+		}
+	}
 }
 
 func (ph *PoolHandler) startWorkers() {
@@ -154,75 +155,10 @@ func (ph *PoolHandler) startWorkers() {
 				if accessItem == nil {
 					continue
 				}
-				// todo 这时放入滑动窗口队列
-				calculateQPS(accessItem, &ph.qpsRecord)
+				ph.calculator.Update(accessItem)
 			}
 		}(i, worker)
 	}
-	echoIntervalTime := time.Second * time.Duration(ph.config.Default.AvgTime)
-	go ph.startRecord()
-	log.Println("start record qps worker success")
-	go ph.startEcho(echoIntervalTime)
-	log.Println("start echo worker success")
-	go ph.startAutoScale()
-	log.Println("start auto scale worker success")
+	go ph.autoScale()
 	ph.isStart = true
-}
-
-func (ph *PoolHandler) startAutoScale() {
-	checkTime := time.Second*time.Duration(ph.config.Default.ScaleIntervalTime) + randTime
-	for {
-		select {
-		case <-time.Tick(checkTime):
-			for namespaceSvc, scaleRecord := range ph.scaleRecord {
-				config := ph.config.GetServiceConfig(namespaceSvc)
-				if config == nil {
-					continue
-				}
-				log.Printf("%s is safe=%t is wasteful=%t", namespaceSvc, scaleRecord.IsSafe(), scaleRecord.IsWasteful())
-				if (!scaleRecord.IsSafe() || scaleRecord.IsWasteful()) && scaleRecord.Interval() {
-					// 说明过量或者过少，都要调整，但是这里记录下上次调整的时间节点，防止频繁的改动
-					newCount := scaleRecord.GetSafeCount()
-					if *newCount > config.MaxPod {
-						log.Printf("%s want=%d  max=%d myabe need more", namespaceSvc, *newCount, config.MaxPod)
-						*newCount = config.MaxPod
-					} else if *newCount < config.MinPod {
-						*newCount = config.MinPod
-					}
-					go func() {
-						svcStrs := strings.Split(namespaceSvc, ".")
-						if len(svcStrs) != 2 {
-							log.Println("WARN service name error", namespaceSvc, "please use namespace.service format")
-							return
-						}
-						namespace, service := svcStrs[1], svcStrs[0]
-						currCnt, err := ph.k8sClient.GetServicePod(namespace, service)
-						if err != nil {
-							log.Printf("WARN get %s.%s replication count err %s", namespace, service, err)
-							return
-						}
-						if *currCnt == *newCount {
-							ph.qpsRecord[namespaceSvc].SetPodCount(newCount)
-							return
-						}
-						err = ph.k8sClient.ChangeServicePod(namespace, service, newCount)
-						if err != nil {
-							log.Printf("WARN %s scale failed %s", namespaceSvc, err)
-							return
-						} else {
-							ph.qpsRecord[namespaceSvc].SetPodCount(newCount)
-							scaleRecord.ChangeCount(newCount)
-							scaleRecord.ChangeScaleState(true, ph.config.Default.ScaleIntervalTime)
-							msg := fmt.Sprintf("%s %s scale from %d => %d",
-								time.Now().Format(timeFmt), namespaceSvc, *currCnt, *newCount)
-							log.Println("send message ", msg)
-							for _, sender := range ph.senders {
-								go sender.Send(msg)
-							}
-						}
-					}()
-				}
-			}
-		}
-	}
 }

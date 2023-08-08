@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	"auto-scale/src/handler"
-	"auto-scale/src/scale"
 	"auto-scale/src/utils"
 )
 
@@ -26,24 +25,14 @@ var (
 	buf       [bufSize]byte
 	bufByte   bytes.Buffer
 	config    *utils.Config
-	server    *Server
-	k8sClient *scale.K8SClient
+	configPath string
 )
 
-type Server struct {
-	configPath  string
-	serviceName string
-	tracerURL   string
-}
-
 func init() {
-	server = new(Server)
-	flag.StringVar(&server.configPath, "config", "config.yaml", "config path ...")
-	flag.StringVar(&server.serviceName, "svc", "simple-hpa", "simple service name")
-	flag.StringVar(&server.tracerURL, "trace", "jaeger.jaeger-infra:5775", "trace url")
+	flag.StringVar(&configPath, "config", "config.yaml", "config path ...")
 	flag.Parse()
 	pwd, _ := os.Getwd()
-	cfg := path.Join(pwd, server.configPath)
+	cfg := path.Join(pwd, configPath)
 	// log.SetFlags(log.Ldate | log.Lmicroseconds | log.Llongfile)
 	config = utils.NewConfig(cfg)
 	if config.ScaleServices == nil || len(config.ScaleServices) == 0 {
@@ -59,9 +48,6 @@ func init() {
 }
 
 func main() {
-	// tracerService, closer := tracer.New(server.serviceName, server.tracerURL)
-	// defer closer.Close()
-	// opentracing.SetGlobalTracer(tracerService)
 	listenAddr := fmt.Sprintf("%s:%d", config.Listen.ListenAddr, config.Listen.Port)
 	addr, err := net.ResolveUDPAddr(netType, listenAddr)
 	if err != nil {
@@ -80,8 +66,7 @@ func main() {
 			conf.ServiceName, conf.Namespace, conf.SafeQps, conf.MaxQps, conf.MinPod, conf.MaxPod, conf.Factor)
 	}
 	log.Printf("forward origin message to %s", config.Forwards)
-	k8sClient = scale.NewK8SClient()
-	poolHandler := handler.NewPoolHandler(config, k8sClient)
+	poolHandler := handler.NewPoolHandler(config)
 	forward := utils.NewForward(config.Forwards)
 	for {
 		n, err := conn.Read(buf[:])

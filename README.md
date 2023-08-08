@@ -9,11 +9,13 @@ Support `NGINX Ingress`
 ## Requirement
 
 - `Kubernetes`
-- `NGINX Ingress`
+- `NGINX Ingress` or `NGINX`
 
 ## Quick Start
 
-### 1. Deploy
+### 1. Inside Kubernetes
+
+#### Step1 
 
 Change `deploy.yaml`ENV, and then apply it
 
@@ -23,7 +25,9 @@ Change `deploy.yaml`ENV, and then apply it
   kubectl apply -f deploy.yaml -n default
   ```
 
-### 2.  Add  Ingress `ConfigMap`
+#### Step 2
+
+Add  Ingress `ConfigMap`
 
 ```bash
  kubectl edit cm/nginx-configuration -n ingress-nginx
@@ -57,3 +61,9 @@ The follow field must present
 - `time_msec`
 - `upstream_addr`
 - `status`
+
+### Outside Kubernetes
+
+```bash
+docker-compose up -d
+```

@@ -4,31 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"log"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"auto-scale/src/ingress"
-	"auto-scale/src/metrics"
 )
 
 const (
 	jsonTry      = 2
 	bracesSymbol = '}'
 	endSymbol    = '"'
+	minuteCount  = 60
 )
-
-var mutex sync.Mutex
-
-func calculateQPS(item ingress.Access, qpsRecord *map[string]*metrics.Calculate) {
-	mutex.Lock()
-	defer mutex.Unlock()
-	dict := *qpsRecord
-	if record, exist := dict[item.ServiceName()]; exist {
-		record.Update(item.Upstream(), item.AccessTime())
-	} else {
-		dict[item.ServiceName()] = metrics.NewCalculate(item.Upstream(), item.AccessTime(), 5)
-	}
-}
 
 func ConcurUnmarshal(data []byte, ing ingress.Access) error {
 	wg := sync.WaitGroup{}
@@ -80,4 +69,180 @@ func ConcurUnmarshal(data []byte, ing ingress.Access) error {
 		return errors.New(string(data))
 	}
 	return nil
+}
+
+func newRingBuffer(max uint, duration time.Duration) *RingBuffer {
+	r := &RingBuffer{
+		cap:   max,
+		data:  make([]int, max),
+		mutex: sync.RWMutex{},
+	}
+	go r.expire(duration + time.Second)
+	return r
+}
+
+type RingBuffer struct {
+	cap   uint // 容量
+	size  uint // 当前大小
+	mutex sync.RWMutex
+	in    uint  // 写入索引位置
+	out   uint  // 读取索引位置
+	data  []int // 内部最终数据
+}
+
+func (rb *RingBuffer) expire(duration time.Duration) {
+	for {
+		rb.mutex.RLock()
+		if rb.size > 0 {
+			rb.out = (rb.out + 1) % rb.cap
+			rb.size--
+		}
+		rb.mutex.RUnlock()
+		time.Sleep(duration)
+	}
+}
+
+func (rb *RingBuffer) isFull() bool {
+	return rb.cap == rb.size
+}
+
+func (rb *RingBuffer) Insert(data int) {
+	if rb.isFull() {
+		log.Printf("buffer is full, %v can add", data)
+		return
+	}
+	rb.mutex.Lock()
+	defer rb.mutex.Unlock()
+	rb.data[rb.in] = data
+	rb.size++
+	rb.in = (rb.in + 1) % rb.cap
+}
+
+func (rb *RingBuffer) Total() int {
+	var total int
+	if rb.size == 0 {
+		return total
+	}
+	rb.mutex.RLock()
+	defer rb.mutex.RUnlock()
+	var i uint
+	for i = 0; i < rb.size; i++ {
+		total += rb.data[rb.out]
+	}
+	rb.size = 0
+	return total
+}
+
+func newUpstream(expire time.Duration) *UpStream {
+	v := &UpStream{mutex: sync.Mutex{}, duration: expire, backends: make(map[string]time.Time)}
+	go v.expire()
+	return v
+}
+
+type UpStream struct {
+	mutex    sync.Mutex
+	duration time.Duration
+	backends map[string]time.Time
+}
+
+func (us *UpStream) expire() {
+	for {
+		us.mutex.Lock()
+		for backend, inTime := range us.backends {
+			if inTime.Add(us.duration).Before(time.Now()) {
+				delete(us.backends, backend)
+			}
+		}
+		us.mutex.Unlock()
+		time.Sleep(us.duration)
+	}
+}
+
+func (us *UpStream) Total() int {
+	return len(us.backends)
+}
+
+func (us *UpStream) Update(upstream string, accessTime time.Time) {
+	us.mutex.Lock()
+	defer us.mutex.Unlock()
+	us.backends[upstream] = accessTime
+}
+
+// 每avgTime的一个记录
+
+type Record struct {
+	ServiceName    string
+	TotalQps       int
+	TotalUpstreams int
+}
+
+func (r *Record) AvgQps() float32 {
+	if r.TotalQps == 0 || r.TotalUpstreams == 0 {
+		return 0
+	}
+	return float32(r.TotalQps) / float32(r.TotalUpstreams)
+}
+
+func NewCalculator(frequency int) *Calculator {
+	r := &Calculator{
+		mutex:      sync.RWMutex{},
+		duration:   time.Duration(frequency) * time.Second,
+		qpsCal:     make(map[string]*RingBuffer),
+		podCal:     make(map[string]*UpStream),
+		currentCnt: 0,
+		secTicker:  time.NewTicker(time.Second),
+		resultChan: make(chan *Record, frequency),
+	}
+	go r.inPipe()
+	return r
+}
+
+type Calculator struct {
+	mutex      sync.RWMutex
+	duration   time.Duration          // 允许接收的时间范围，防止很早之前的数据
+	qpsCal     map[string]*RingBuffer // qps计算器，
+	podCal     map[string]*UpStream   // 服务Pod的计数,key为服务名
+	currentCnt int                    // 一秒之内的数据，一秒后会加入到data里面
+	secTicker  *time.Ticker           // 重置时钟
+	resultChan chan *Record           // 计算出结果后的
+}
+
+func (c *Calculator) Update(v ingress.Access) {
+	if v.AccessTime().Add(c.duration).Before(time.Now()) {
+		return
+	}
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	c.currentCnt++
+	if _, ok := c.qpsCal[v.ServiceName()]; !ok {
+		c.qpsCal[v.ServiceName()] = newRingBuffer(minuteCount, c.duration)
+	}
+	if _, ok := c.podCal[v.ServiceName()]; !ok {
+		c.podCal[v.ServiceName()] = newUpstream(c.duration)
+	}
+	select {
+	case <-c.secTicker.C:
+		c.qpsCal[v.ServiceName()].Insert(c.currentCnt)
+		c.currentCnt = 1
+	default:
+	}
+	c.podCal[v.ServiceName()].Update(v.Upstream(), v.AccessTime())
+}
+
+func (c *Calculator) inPipe() {
+	for {
+		c.mutex.RLock()
+		for serviceName := range c.qpsCal {
+			c.resultChan <- &Record{ServiceName: serviceName,
+				TotalQps:       c.qpsCal[serviceName].Total(),
+				TotalUpstreams: c.podCal[serviceName].Total(),
+			}
+		}
+		c.mutex.RUnlock()
+		time.Sleep(c.duration + randTime)
+	}
+}
+
+func (c *Calculator) Pipeline() <-chan *Record {
+	return c.resultChan
 }
