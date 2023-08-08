@@ -1,6 +1,6 @@
 FROM golang as builder
 
-ENV GOPROXY="https://goproxy.io,direct"
+ENV GOPROXY="https://mirrors.aliyun.com/goproxy/"
 
 ADD ./  /simple-hpa
 
