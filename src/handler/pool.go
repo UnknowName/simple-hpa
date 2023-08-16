@@ -117,23 +117,22 @@ func (ph *PoolHandler) autoScale() {
 		ph.adjuster.Update(record.ServiceName, qps < conf.MaxQps, qps < conf.SafeQps)
 		if ph.adjuster.NeedChange(record.ServiceName) {
 			cnt := int32(math.Ceil(float64(qps / conf.MaxQps)))
-			if cnt == 0 {
-				continue
-			}
 			if cnt > conf.MaxPod {
 				log.Printf("%s wants %d, but max is %d", record.ServiceName, cnt, conf.MaxPod)
 				cnt = conf.MaxPod
 			}
 			if cnt < conf.MinPod {
-				log.Printf("%s wants %d, but min is %d", record.ServiceName, cnt, conf.MinPod)
 				cnt = conf.MinPod
 			}
-			go func() {
-				for _, sender := range ph.senders {
-					sender.Send(fmt.Sprintf("%s new count %d", record.ServiceName, cnt))
-				}
-			}()
-			ph.adjuster.ChangeServicePod(record.ServiceName, &cnt)
+			oldCnt := ph.adjuster.ChangeServicePod(record.ServiceName, &cnt)
+			if oldCnt != nil {
+				go func() {
+					msg := fmt.Sprintf("%s from %d to %d", record.ServiceName, *oldCnt, cnt)
+					for _, sender := range ph.senders {
+						sender.Send(msg)
+					}
+				}()
+			}
 		}
 	}
 }

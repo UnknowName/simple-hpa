@@ -100,11 +100,20 @@ type oks struct {
 }
 
 func (o *oks) insert(r bool) {
-	o.data[0.i] = r
+	o.data[o.i] = r
 	o.i = (o.i + 1) % len(o.data)
 }
 
-func (o *oks) isTrue() bool {
+func (o *oks) allFalse() bool {
+	for _, v := range o.data {
+		if v == true {
+			return false
+		}
+	}
+	return true
+}
+
+func (o *oks) allTrue() bool {
 	for _, v := range o.data {
 		if v == false {
 			return false
@@ -137,11 +146,13 @@ type ScalerManage struct {
 func (sm *ScalerManage) Update(k string, isSafe, isWaste bool) {
 	if val, ok := sm.safes[k]; !ok {
 		sm.safes[k] = newOks(sm.cnt)
+		sm.safes[k].insert(isSafe)
 	} else {
 		val.insert(isSafe)
 	}
 	if val, ok := sm.wastes[k]; !ok {
 		sm.wastes[k] = newOks(sm.cnt)
+		sm.wastes[k].insert(isWaste)
 	} else {
 		val.insert(isWaste)
 	}
@@ -156,38 +167,38 @@ func (sm *ScalerManage) NeedChange(serviceName string) bool {
 	if latest.After(time.Now()) {
 		return false
 	}
-	if !sm.isSafe(serviceName) {
-		return true
-	}
-	return sm.isWaste(serviceName)
+	return sm.isWaste(serviceName) || sm.isDanger(serviceName)
 }
 
-func (sm *ScalerManage) isSafe(serviceName string) bool {
-	return sm.safes[serviceName].isTrue()
+func (sm *ScalerManage) isDanger(serviceName string) bool {
+	// qps < conf.MaxQPS 全为假
+	return sm.safes[serviceName].allFalse()
 }
 
 func (sm *ScalerManage) isWaste(serviceName string) bool {
-	return sm.wastes[serviceName].isTrue()
+	// qps < conf.SafeQPS全为真
+	return sm.wastes[serviceName].allTrue()
 }
 
-func (sm *ScalerManage) ChangeServicePod(serviceName string, newCnt *int32) {
+func (sm *ScalerManage) ChangeServicePod(serviceName string, newCnt *int32) *int32 {
 	namespaces := strings.Split(serviceName, ".")
 	if len(namespaces) != 2 {
 		log.Fatalln(serviceName, "no valid serviceName, use format like svc.namespace")
 	}
 	namespace, service := namespaces[1], namespaces[0]
-	old, err := sm.client.GetServicePod(namespace, service)
+	oldCnt, err := sm.client.GetServicePod(namespace, service)
 	if err != nil {
 		log.Println("get ", serviceName, "pod error", err)
-		return
+		return nil
 	}
-	if *old == *newCnt {
-		return
+	if *oldCnt == *newCnt {
+		return nil
 	}
-	log.Printf("change %s from %d to %d", serviceName, *old, *newCnt)
+	log.Printf("change %s from %d to %d", serviceName, *oldCnt, *newCnt)
 	err = sm.client.ChangeServicePod(namespace, service, newCnt)
 	sm.histories[serviceName] = time.Now().Add(sm.interval)
 	if err != nil {
 		log.Println("change service pod error", err)
 	}
+	return oldCnt
 }
