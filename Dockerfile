@@ -1,6 +1,7 @@
 FROM golang as builder
 
-ENV GOPROXY="https://mirrors.aliyun.com/goproxy/"
+# Build image on Github
+# ENV GOPROXY="https://mirrors.aliyun.com/goproxy/"
 
 ADD ./  /simple-hpa
 
