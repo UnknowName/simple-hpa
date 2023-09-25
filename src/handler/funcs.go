@@ -77,7 +77,7 @@ func newRingBuffer(max uint, duration time.Duration) *RingBuffer {
 		data:  make([]int, max),
 		mutex: sync.RWMutex{},
 	}
-	go r.expire(duration + time.Second)
+	go r.expire(duration)
 	return r
 }
 
@@ -91,14 +91,17 @@ type RingBuffer struct {
 }
 
 func (rb *RingBuffer) expire(duration time.Duration) {
+	ticker := time.NewTicker(duration)
 	for {
-		rb.mutex.RLock()
-		if rb.size > 0 {
-			rb.out = (rb.out + 1) % rb.cap
-			rb.size--
+		select {
+		case <-ticker.C:
+			rb.mutex.RLock()
+			if rb.size > 0 {
+				rb.out = (rb.out + 1) % rb.cap
+				rb.size--
+			}
+			rb.mutex.RUnlock()
 		}
-		rb.mutex.RUnlock()
-		time.Sleep(duration)
 	}
 }
 
@@ -146,15 +149,18 @@ type UpStream struct {
 }
 
 func (us *UpStream) expire() {
+	ticker := time.NewTicker(us.duration)
 	for {
-		us.mutex.Lock()
-		for backend, inTime := range us.backends {
-			if inTime.Add(us.duration).Before(time.Now()) {
-				delete(us.backends, backend)
+		select {
+		case <- ticker.C:
+			us.mutex.Lock()
+			for backend, inTime := range us.backends {
+				if inTime.Add(us.duration).Before(time.Now()) {
+					delete(us.backends, backend)
+				}
 			}
+			us.mutex.Unlock()
 		}
-		us.mutex.Unlock()
-		time.Sleep(us.duration)
 	}
 }
 
@@ -183,15 +189,17 @@ func (r *Record) AvgQps() float32 {
 	return float32(r.TotalQps) / float32(r.TotalUpstreams)
 }
 
-func NewCalculator(frequency int) *Calculator {
+func NewCalculator(svcName string, frequency int) *Calculator {
+	duration := time.Duration(frequency) * time.Second
 	r := &Calculator{
 		mutex:      sync.RWMutex{},
-		duration:   time.Duration(frequency) * time.Second,
-		qpsCal:     make(map[string]*RingBuffer),
-		podCal:     make(map[string]*UpStream),
+		duration:   duration,
+		qpsCal:     newRingBuffer(minuteCount,duration),
+		podCal:     newUpstream(duration),
 		currentCnt: 0,
 		secTicker:  time.NewTicker(time.Second),
 		resultChan: make(chan *Record, frequency),
+		serviceName: svcName,
 	}
 	go r.inPipe()
 	return r
@@ -200,46 +208,41 @@ func NewCalculator(frequency int) *Calculator {
 type Calculator struct {
 	mutex      sync.RWMutex
 	duration   time.Duration          // 允许接收的时间范围，防止很早之前的数据
-	qpsCal     map[string]*RingBuffer // qps计算器，
-	podCal     map[string]*UpStream   // 服务Pod的计数,key为服务名
+	qpsCal     *RingBuffer            // qps计算器，
+	podCal     *UpStream              // 服务Pod的计数,key为服务名
 	currentCnt int                    // 一秒之内的数据，一秒后会加入到data里面
 	secTicker  *time.Ticker           // 重置时钟
 	resultChan chan *Record           // 计算出结果后的
+	// inTicker    *time.Ticker
+	serviceName string
 }
 
 func (c *Calculator) Update(v ingress.Access) {
 	if v.AccessTime().Add(c.duration).Before(time.Now()) {
 		return
 	}
-	c.mutex.RLock()
-	defer c.mutex.RUnlock()
+	c.mutex.Lock()
 	c.currentCnt++
-	if _, ok := c.qpsCal[v.ServiceName()]; !ok {
-		c.qpsCal[v.ServiceName()] = newRingBuffer(minuteCount, c.duration)
-	}
-	if _, ok := c.podCal[v.ServiceName()]; !ok {
-		c.podCal[v.ServiceName()] = newUpstream(c.duration)
-	}
+	c.mutex.Unlock()
 	select {
 	case <-c.secTicker.C:
-		c.qpsCal[v.ServiceName()].Insert(c.currentCnt)
+		c.qpsCal.Insert(c.currentCnt)
 		c.currentCnt = 1
 	default:
 	}
-	c.podCal[v.ServiceName()].Update(v.Upstream(), v.AccessTime())
+	c.podCal.Update(v.Upstream(), v.AccessTime())
 }
 
 func (c *Calculator) inPipe() {
+	ticker := time.NewTicker(c.duration+randTime)
 	for {
-		c.mutex.RLock()
-		for serviceName := range c.qpsCal {
-			c.resultChan <- &Record{ServiceName: serviceName,
-				TotalQps:       c.qpsCal[serviceName].Total(),
-				TotalUpstreams: c.podCal[serviceName].Total(),
+		select {
+		case <-ticker.C:
+			c.resultChan <- &Record{ServiceName: c.serviceName,
+				TotalQps:       c.qpsCal.Total() + c.currentCnt,
+				TotalUpstreams: c.podCal.Total(),
 			}
 		}
-		c.mutex.RUnlock()
-		time.Sleep(c.duration + randTime)
 	}
 }
 

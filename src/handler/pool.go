@@ -18,7 +18,6 @@ const (
 	randTime                     = time.Millisecond * 211
 	defaultQueueSize             = 1024
 	defaultPoolSize              = 10
-	// timeFmt                      = "2006-01-02 15:04:05"
 	nginx            IngressType = iota
 	traefik
 )
@@ -70,10 +69,10 @@ func NewPoolHandler(config *utils.Config) *PoolHandler {
 		config:     config,
 		workers:    workers,
 		senders:    senders,
-		calculator: NewCalculator(config.Default.AvgTime),
 		adjuster:   scale.NewScaler(minuteCount/config.Default.AvgTime, config.Default.ScaleIntervalTime),
 		poolSize:   defaultPoolSize,
 		queue:      queues,
+		counter:    make(map[string]*Calculator),
 	}
 	poolHandler.startWorkers()
 	return poolHandler
@@ -83,7 +82,7 @@ type PoolHandler struct {
 	config     *utils.Config
 	senders    []utils.Sender
 	workers    []handler
-	calculator *Calculator
+	counter    map[string]*Calculator
 	adjuster   *scale.ScalerManage
 	poolSize   uint8
 	queue      []chan []byte
@@ -96,44 +95,48 @@ func (ph *PoolHandler) Execute(data []byte) {
 }
 
 func (ph *PoolHandler) autoScale() {
-	log.Println("start auto scale worker success")
-	for {
-		record := <-ph.calculator.Pipeline()
-		if record == nil {
-			continue
-		}
-		conf := ph.config.GetServiceConfig(record.ServiceName)
-		if conf == nil {
-			continue
-		}
-		qps := record.AvgQps() * conf.Factor / float32(ph.config.Default.AvgTime)
-		log.Printf("latest %d seconds %s qps(*%.1f)=%.1f active upstreams=%d",
-			ph.config.Default.AvgTime,
-			record.ServiceName,
-			conf.Factor,
-			qps,
-			record.TotalUpstreams,
-		)
-		ph.adjuster.Update(record.ServiceName, qps < conf.MaxQps, qps < conf.SafeQps)
-		if ph.adjuster.NeedChange(record.ServiceName) {
-			cnt := int32(math.Ceil(float64(qps / conf.MaxQps)))
-			if cnt > conf.MaxPod {
-				log.Printf("%s wants %d, but max is %d", record.ServiceName, cnt, conf.MaxPod)
-				cnt = conf.MaxPod
-			}
-			if cnt < conf.MinPod {
-				cnt = conf.MinPod
-			}
-			oldCnt := ph.adjuster.ChangeServicePod(record.ServiceName, &cnt)
-			if oldCnt != nil {
-				go func() {
-					msg := fmt.Sprintf("%s from %d to %d", record.ServiceName, *oldCnt, cnt)
-					for _, sender := range ph.senders {
-						sender.Send(msg)
+	for key, cal := range ph.counter {
+		log.Printf("start %s auto scale worker success", key)
+		go func(cal *Calculator) {
+			for {
+				record := <-cal.Pipeline()
+				if record == nil {
+					continue
+				}
+				conf := ph.config.GetServiceConfig(record.ServiceName)
+				if conf == nil {
+					continue
+				}
+				qps := record.AvgQps() * conf.Factor / float32(ph.config.Default.AvgTime)
+				log.Printf("latest %d seconds %s qps(*%.1f)=%.1f active upstreams=%d",
+					ph.config.Default.AvgTime,
+					record.ServiceName,
+					conf.Factor,
+					qps,
+					record.TotalUpstreams,
+				)
+				ph.adjuster.Update(record.ServiceName, qps < conf.MaxQps, qps < conf.SafeQps)
+				if ph.adjuster.NeedChange(record.ServiceName) {
+					cnt := int32(math.Ceil(float64(qps / conf.MaxQps)))
+					if cnt > conf.MaxPod {
+						log.Printf("%s wants %d, but max is %d", record.ServiceName, cnt, conf.MaxPod)
+						cnt = conf.MaxPod
 					}
-				}()
+					if cnt < conf.MinPod {
+						cnt = conf.MinPod
+					}
+					oldCnt := ph.adjuster.ChangeServicePod(record.ServiceName, &cnt)
+					if oldCnt != nil {
+						go func() {
+							msg := fmt.Sprintf("%s from %d to %d", record.ServiceName, *oldCnt, cnt)
+							for _, sender := range ph.senders {
+								sender.Send(msg)
+							}
+						}()
+					}
+				}
 			}
-		}
+		}(cal)
 	}
 }
 
@@ -143,8 +146,10 @@ func (ph *PoolHandler) startWorkers() {
 	}
 	for i, worker := range ph.workers {
 		services := make([]string, len(ph.config.ScaleServices))
-		for i, config := range ph.config.ScaleServices {
-			services[i] = fmt.Sprintf("%s.%s", config.ServiceName, config.Namespace)
+		for j, config := range ph.config.ScaleServices {
+			fullName := fmt.Sprintf("%s.%s", config.ServiceName, config.Namespace)
+			services[j] = fullName
+			ph.counter[fullName] = NewCalculator(fullName, ph.config.Default.AvgTime)
 		}
 		worker.SetScaleService(services)
 		go func(i int, worker handler) {
@@ -154,7 +159,7 @@ func (ph *PoolHandler) startWorkers() {
 				if accessItem == nil {
 					continue
 				}
-				ph.calculator.Update(accessItem)
+				ph.counter[accessItem.ServiceName()].Update(accessItem)
 			}
 		}(i, worker)
 	}
